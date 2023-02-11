@@ -1,0 +1,19 @@
+#include "dkli.dkh"
+#!
+program
+{
+    #include "functions.dkh"
+
+    @gs_base_path = "/usr/dkl_apps/web/irq.ws.induxsoft.net"
+    @gs_temp_path = path.concat(@gs_base_path,"temp")
+    @gs_solicitudes_path = path.concat(@gs_base_path,"solicitudes")
+    @gs_solicitudes_cookie_name = "url_solicitudes"
+    
+
+    @url_delete_file_bitacora="https://irq.ws.induxsoft.net/solicitudes/ges_solicitudes/"
+    @path_get_files=path.concat(@gs_base_path,"solicitudes")
+
+    // dias a partir de la fecha actual
+    @inicio_previsto = 0
+    @cierre_previsto = 1
+}

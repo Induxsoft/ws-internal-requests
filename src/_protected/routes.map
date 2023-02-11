@@ -1,0 +1,10 @@
+GET: /definitive.api.js/ > $web/irq.ws.induxsoft.net/definitive.api.js
+Get: /download_file.file/ >	$web/irq.ws.induxsoft.net/ges_solicitud/download_file.file.dkl
+GET: /plantilla_inicio.html > $web/irq.ws.induxsoft.net/ges_solicitud/plantilla_inicio.html
+GET: /plantilla_fin.html > $web/irq.ws.induxsoft.net/ges_solicitud/plantilla_fin.html
+GET: /plantilla_cancelar.html > $web/irq.ws.induxsoft.net/ges_solicitud/plantilla_cancelar.html
+GET: /{ws?} > $web/irq.ws.induxsoft.net/controller.dkl
+POST: {ws}/solicitudes/{_entities_type} > $web/irq.ws.induxsoft.net/controller.dkl
+GET: {ws}/solicitudes/{_entities_type} > $web/irq.ws.induxsoft.net/controller.dkl
+*: {ws}/{_entities_type}/{_entity_id?} > $web/irq.ws.induxsoft.net/controller.dkl
+

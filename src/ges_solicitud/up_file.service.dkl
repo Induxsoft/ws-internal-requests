@@ -1,0 +1,85 @@
+#include "dkli.dkh"
+#!
+program
+{
+    #include "functions.dkh"
+    #include "dbr.dkh"
+    #include "serialize.dkh"
+    #include "webcl.dkh"
+    #include "config.dk"
+    
+    new res{}
+    @uuidArchivosTemporales = ""
+    
+
+    ref files=field.obj(@http_context,"request/files")
+    ref postData=field.dobj(@http_context,"request/post",@null)
+    ref getData=@@(@http_context,"&request/get")
+
+    if not(isnull(postData)){
+        //agrega mas archivos a la biblioteca de archivos
+        if parse.bool(@@(postData,"add_files")){
+            for i=0; i<list.count(files)
+            {
+               ref f=list.obj(files,i)
+               path=path.concat(@gs_solicitudes_path,@@(postData,"sys_guid"))
+               carpeta="biblioteca/"
+               if parse.bool(@@(postData,"res")){carpeta="resultados/"}
+                do file.copy(field.str(f,"temp_file"),path.concat(path,carpeta+field.str(f,"filename")))
+            }
+        }
+        //copia los archivos del temp a la carpeta de resultados segun la solicitud
+        if parse.bool(@@(postData,"result"))
+        {
+            if @@(postData,"files")!="" && @@(postData,"files")!=","
+            {
+                ref files=split(@@(postData,"files"),",")
+                for i=0; i<list.count(files)
+                {
+                    name_file= list.str(files, i)
+                    if name_file!=""{
+                        name_temp=path.concat(@gs_temp_path,name_file)
+                        if file.exists(name_temp)
+                        {
+                            path=path.concat(@gs_solicitudes_path,@@(postData,"solicitud"))
+                            carpeta="resultados/"
+                            do file.copy(name_temp,path.concat(path,carpeta+name_file))
+                            do file.delete(name_temp)
+                        }
+                    }
+                }
+            }
+            
+        }
+
+    }else{
+        //agrega los archivos temporales en temp
+        for i=0;i<list.count(files)
+        {
+            ref f=list.obj(files,i)
+            nombre=field.str(f,"filename")
+            if parse.bool(@@(getData,"bit")){nombre=uuid()+".file@"+field.str(f,"filename")}
+            @uuidArchivosTemporales = @uuidArchivosTemporales + "," + nombre
+            do file.copy(field.str(f,"temp_file"),path.concat(@gs_temp_path,nombre))
+        }
+    }
+    
+
+    using res 
+    { 
+        @"success": @true 
+        @"uuidArchivosTemporales" : @uuidArchivosTemporales
+        @"message":""
+    }
+
+    exception
+    {
+        using res{}
+        res<"message">:last_error()
+        res<"success">:@false
+    }
+
+    @http_context<"response/headers/Content-Type">:"application/json;charset=utf-8"
+    @http_context<"response/output">:"text"
+    @http_context<"response/text">: to.json(res)
+}

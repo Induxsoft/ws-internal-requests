@@ -1,0 +1,46 @@
+#include "dkli.dkh"
+#!
+program
+{
+    #include "functions.dkh"
+    #include "dbr.dkh"
+    #include "serialize.dkh"
+    #include "webcl.dkh"
+    #include "config.dk"
+    
+    new res{}
+
+    ref datos=field.obj(@http_context,"request/post")
+    if not(isnull(datos)){
+        ref bd=dbr.open(@@(datos,"$bd"))
+    }
+    else{do rise_error(500,"falta una conexión hacia la base de datos")}
+    color = @@(datos, "id_color")
+    solicitud = @@(datos, "id_solicitud")
+    new data{}
+    if @@(datos,"emisor") =="" && @@(datos,"receptor")==""{return}
+    if parse.bool(@@(datos,"emisor")) && color!=""{data<"color">:color}
+    if parse.bool(@@(datos,"receptor")) && color!=""{data<"color_receptor">:color}
+    using res 
+    { 
+        @"solicitud": solicitud
+    }
+    
+    do dbr.update(bd,"gs_solicitud",data,"sys_pk=@solicitud",res)
+    using res 
+    { 
+        @"success": @true
+        @"solicitud": solicitud
+    }
+
+    exception
+    {
+        using res{}
+        res<"message">:last_error()
+        res<"success">:@false
+    }
+
+    @http_context<"response/headers/Content-Type">:"application/json;charset=utf-8"
+    @http_context<"response/output">:"text"
+    @http_context<"response/text">: to.json(res)
+}

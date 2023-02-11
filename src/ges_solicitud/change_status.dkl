@@ -1,0 +1,52 @@
+#include "dkli.dkh"
+#!
+program
+{
+    #include "functions.dkh"
+    #include "dbr.dkh"
+    #include "serialize.dkh"
+    #include "config.smtp.dkl"
+    new data{}
+    ref postData=field.dobj(@http_context,"request/post",@null)
+    if isnull(postData){do rise_error(500,"párametros incompletos,vuelva intentarlo")}
+
+    ref bd=dbr.open(@@(postData,"bd"))
+    
+    new data_bd{}
+    if @@(postData,"act")=="aceptacion"{data_bd<"status">:10}
+    if @@(postData,"act")=="play"{data_bd<"status">:11}
+    if @@(postData,"act")=="rechazar"{data_bd<"status">:91}
+    if @@(postData,"act")=="pause"{data_bd<"status">:20}
+    if @@(postData,"act")=="terminar"{data_bd<"status">:30}
+    if @@(postData,"act")=="continuar"{data_bd<"status">:11}
+    if @@(postData,"act")=="aprobar"{data_bd<"status">:50}
+    if @@(postData,"act")=="cancelar"{data_bd<"status">:90}
+    if @@(postData,"act")=="archivar"{data_bd<"status">:99}
+    if @@(data_bd,"#status") == 50 { data_bd<"cierre_real">:date_str(now(),'yyyy-MM-ddThh:mm') }
+    // do rise_error(88,to.json(@http_context))
+     do dbr.update(bd,"gs_solicitud",data_bd,"sys_pk=@sys_pk",postData)
+    if @@(postData,"act")=="cancelar" || @@(postData,"act")=="aprobar"  || @@(postData,"act")=="terminar"
+    {
+        ref res=dbr.rec(bd,"select * from gs_solicitud where sys_pk=@sys_pk",postData)
+        @mail<"to">:@@(postData,"email")//"candelario.hernandez@induxsoft.net"
+       do solicitudes.email(res,@true)
+    }
+    
+    using data
+    {
+        @"success":@true
+        @"data*":@null
+    }
+
+    exception
+    {
+        using data
+        {
+            @"success":@false
+            @"message":last_error()
+        }
+    }
+    @http_context<"response/headers/Content-Type">:"application/json;charset=utf-8"
+    @http_context<"response/output">:"text"
+    @http_context<"response/text">: to.json(data)
+}

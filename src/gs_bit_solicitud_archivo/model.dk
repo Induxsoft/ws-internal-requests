@@ -1,0 +1,50 @@
+#include "dkli.dkh"
+#!
+module "archivos_bitacora"{
+
+    #include "config.dk"
+    #include "serialize.dkh"
+
+
+    @list_query="select bit_solicitud, archivo, notas from gs_bit_solicitud_archivo;"
+
+    @read_query = "select bit_solicitud, archivo, notas from gs_bit_solicitud_archivo where #<@keyfield>=@_entity_id limit 1;"
+
+
+    gs_bit_solicitud_archivo.create::&db,&params,&data
+    {
+        cadena_archivos_bitacora = @@(data,"cadena_archivo")
+        bit_solicitud = @@(data,"bit_solicitud")
+
+        ref array_archivos_bitacora = split(cadena_archivos_bitacora, ",")
+
+        for i=1; i<@count(array_archivos_bitacora)
+        {
+            archivo_bitacora= list.str(array_archivos_bitacora, i) //uuid.file.name.ext
+            ref nombreRecortado = split(archivo_bitacora,".")
+            ref nombreRecortado2 = split(archivo_bitacora,"@")
+                // nombre_file=""
+                // for  j =2; j < @count(nombreRecortado)
+                // {
+                //     nombre_file=nombre_file+list.str(nombreRecortado, j)
+                // }
+            new campos
+            {
+                @"bit_solicitud": bit_solicitud
+                @"archivo":list.str(nombreRecortado,0)
+                @"notas":list.str(nombreRecortado2,1)
+            }
+            nombre_file=list.str(nombreRecortado2,0)
+            origen = path.concat(@gs_temp_path, archivo_bitacora)
+            destino = path.concat(path.concat(@gs_solicitudes_path,@@(data,"sys_guid")+"/bitacora"), nombre_file)
+            do file.copy(origen, destino)
+            do file.delete(origen)
+            
+            do dbr.insert(db, "gs_bit_solicitud_archivo", campos)
+            // ref res= entity.create(db,params,campos)
+        }
+        // do rise_error(888, to.json(data))
+    }
+
+    point @create to gs_bit_solicitud_archivo.create
+}

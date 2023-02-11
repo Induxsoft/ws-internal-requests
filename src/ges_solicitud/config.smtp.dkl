@@ -1,0 +1,93 @@
+#include "dkli.dkh"
+#!
+module "config.smtp"
+{
+    #include "webcl.dkh"
+    @server="send.smtp.com"
+    @protocol=""        //ssl  - Habilita el cifrado, omita si no lo requiere
+    @port="2525"           //Número de puerto
+    @user="cfdi-noreply@induxsoft.com"           //Usuario del servidor SMTP
+    @password="Istocolmo123="      //Contraseña del usuario SMTP
+    @from="Nueva solicitud <cfdi-noreply@induxsoft.com>"          //Remitente del mensaje con el formato: nombre a mostrar <direccion@correo>
+    @to=""          //Destinatario de correo
+    @repply=""      //Dirección a copiar el mensaje (opcional)
+    @cco="cua@induxsoft.net"         //Dirección de copia oculta
+    @subject="Nueva solicitud"    //motivo del correo
+    //plantilla defualt por si el recurso solicitado en http.get falla toma estas segun el caso
+    @body='<p>Nueva solicitud <b>@referencia</b></p>
+        <p><b>@emisor</b> te ha enviado una nueva solicitud <a href="@link">@referencia @asunto</a></p>'        //cuerpo del correo
+
+    @body_terminar='<p>solicitud <b>@referencia</b> terminada.</p>
+                    <p><b>@emisor</b> ha marcado como terminada la solicitud <a href="@link">@referencia @asunto</a></p>'
+
+    @body_cancelar='<p>solicitud <b>@referencia</b> cancelada.</p>
+                    <p><b>@emisor</b> ha marcado como cancelada la solicitud <a href="@link">@referencia @asunto</a></p>'
+    
+    new @mail
+    {
+        @"server":@server
+        // @"protocol":@protocol 
+        @"port":@port   
+        @"user":@user
+        @"password":@password
+        @"from":@from
+        @"to":@to
+        // @"repply":@repply 
+        // @"cco":@cco
+        @"subject":@subject
+        @"body":@body
+    }
+
+    current_url::ph
+    {
+        host=@@(@http_context,"request/headers/HTTP_HOST")
+        protocol=ifstr(parse.bool(@@(@http_context,"request/headers/HTTPS")),"https","http")
+        path=replace(field.dstr(@http_context,"request/headers/request_uri","/"),"\\","/")
+        if ph{return protocol+"://"+host}
+        path=list.str(split(path,"?"),0)
+
+        return protocol+"://"+path.concat(host,path)
+    }
+
+    @url_plantilla=current_url(@true)+"/plantilla_inicio.html?_output=raw"
+    @url_plantilla_terminada=current_url(@true)+"/plantilla_fin.html?_output=raw"
+    @url_plantilla_cancelar=current_url(@true)+"/plantilla_cancelar.html?_output=raw"
+    @link=current_url(@false)
+
+    /// funcion general para enviar correos
+    solicitudes.email::&res,ter
+    {
+        if ter
+        {
+            if @@(@http_context,"request/post/act")=="cancelar"
+            {
+                @url_plantilla=@url_plantilla_cancelar
+            }else{
+                @url_plantilla=@url_plantilla_terminada
+            }
+            
+            if field.exist(@http_context,"request/headers/HTTP_REFERER"){
+                @link=@@(@http_context,"request/headers/HTTP_REFERER")
+            }else{
+                @link=path.concat(current_url(@true),@@(@http_context,"$request/post/ws"))
+            }
+        }
+        html=http.get(@url_plantilla)
+
+        exception{
+            if ter
+            {
+                if @@(@http_context,"request/post/act")=="cancelar"{html=@body_cancelar}
+                else{html=@body_terminar}
+            }
+            else{html=@body}
+        }
+        if  html!=""{@body=html}
+        @body=replace(@body,"@referencia",@@(res,"referencia"))
+        @body=replace(@body,"@emisor",ifstr(not(ter) || @@(@http_context,"request/post/act")=="cancelar",@@(res,"emisor_nombre"),@@(res,"receptor_nombre")))
+        @body=replace(@body,"@asunto",@@(res,"asunto"))
+        @body=replace(@body,"@link",replace(@link,"_new",path.concat(@@(res,"$sys_pk"),"/")))
+        @mail<"body">:@body
+        do smtp.send(@mail)
+    }
+}

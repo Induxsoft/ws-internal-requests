@@ -1,0 +1,1044 @@
+script{
+	$'
+
+		function deleteEntity(sys_pk){
+			var res=confirm("¿Esta seguro de eliminar la fila?");
+			if(!res)
+				return;
+			definitive.rest("./"+sys_pk,"DELETE",null,
+				function(entity){
+					//Operación exitosa
+					window.location.reload();
+				},
+				function(error){
+					alert(error)
+					//Error de aplicación
+				},
+				function(error){
+					var er=JSON.stringify(error);
+					var p=JSON.parse(er);
+					alert(p.responseJSON.message);
+				}
+			);
+		}
+        function addArchivadas(e,btn,sys_pk)
+        {
+        	e.stopPropagation();
+        	var res=confirm("¿Esta seguro de archivar la solicitud?");
+			if(!res)
+				return;
+			cambio_status(btn,sys_pk);
+        }
+        var accion = function(c,h){
+            if(c.checked)
+                h.value="1"
+            else
+                h.value="0"
+        }
+
+        var req_aceptacion = document.querySelector("#req_aceptacion");
+        var req_aprobacion = document.querySelector("#req_aprobacion");
+        var receptor_pausar = document.querySelector("#receptor_pausar");
+        var receptor_progreso = document.querySelector("#receptor_progreso");
+
+		var req_aceptacion_h = document.querySelector("#req_aceptacion_h");
+        var req_aprobacion_h = document.querySelector("#req_aprobacion_h");
+        var receptor_pausar_h = document.querySelector("#receptor_pausar_h");
+        var receptor_progreso_h = document.querySelector("#receptor_progreso_h");
+        var save_op_borrador=document.querySelector("#save_btn");
+
+        if(req_aceptacion)req_aceptacion.addEventListener("click", e=>accion(req_aceptacion,req_aceptacion_h));
+        if(req_aprobacion)req_aprobacion.addEventListener("click", e=>accion(req_aprobacion,req_aprobacion_h));
+        if(receptor_pausar)receptor_pausar.addEventListener("click", e=>accion(receptor_pausar,receptor_pausar_h));
+        if(receptor_progreso)receptor_progreso.addEventListener("click", e=>accion(receptor_progreso,receptor_progreso_h));
+        
+        if(save_op_borrador) save_op_borrador.addEventListener("click",e=>{
+        	$("#receptor_nombre").val(" ");
+        	$("select[name=receptor]").val(" ");
+        	$("#btn_Enviar").trigger("click");
+        });
+
+		var uid_recept = document.querySelector(".id_receptor");
+		if(uid_recept) uid_recept.addEventListener("change", e=> {
+			$("#receptor_nombre").val(uid_recept.options[uid_recept.selectedIndex].text);
+		});
+
+		var ini_prev = document.querySelector("#inicio_previsto");
+		if(ini_prev) ini_prev,addEventListener("change", e => {
+			$("#inicio_real").val(ini_prev.value);
+		});
+
+		function refreshTable(filtro)
+		{
+			window.location.href="./?filter="+filtro;
+		}
+		var f=false;
+		function panel_archivadas()
+		{
+			if(!f)
+			{
+				$(\'.hide-panel\').hide();
+				$(\'#a-search svg\').remove();
+				$(\'#a-search\').append(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-double-up" viewBox="0 0 16 16">
+									  <path fill-rule="evenodd" d="M7.646 2.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 3.707 2.354 9.354a.5.5 0 1 1-.708-.708l6-6z"/>
+									  <path fill-rule="evenodd" d="M7.646 6.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 7.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+									</svg>`);
+				f=true;	
+			}else{
+				$(\'.hide-panel\').show(); f=false;	
+				$(\'#a-search svg\').remove();
+				$(\'#a-search\').append(`<svg xmlns="http://www.w3.org/2000/svg" id="arriba-chevron" width="16" height="16" fill="currentColor" class="bi bi-chevron-double-down" viewBox="0 0 16 16">
+					  <path fill-rule="evenodd" d="M1.646 6.646a.5.5 0 0 1 .708 0L8 12.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+					  <path fill-rule="evenodd" d="M1.646 2.646a.5.5 0 0 1 .708 0L8 8.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+					</svg>`);
+			}
+			
+		}
+		function show_options()
+		{
+			let option_selected = url_params["search"] ?? "";
+			let reference_option_v = url_params["date_of"] == undefined && url_params["text_search"] != undefined ? url_params["text_search"] : "";
+			let select_option_v = url_params["date_of"] ?? "";
+			let start_date_option_v = url_params["init"] ?? "";
+			let end_date_option_v = url_params["end"] ?? "";
+			let text_option_v = url_params["date_of"] != undefined ? url_params["text_search"] : "";
+
+			let options = document.querySelector("#deep_search_options");
+			options.innerHTML = `
+			<div class="navbar-collapse option_section_container">
+				<a style="text-decoration:none;" id="a-search" class="text-success" href="#" onclick="panel_archivadas();"><span>Buscar</span> 
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chevron-double-up" viewBox="0 0 16 16">
+									  <path fill-rule="evenodd" d="M7.646 2.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 3.707 2.354 9.354a.5.5 0 1 1-.708-.708l6-6z"/>
+									  <path fill-rule="evenodd" d="M7.646 6.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 7.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+									</svg>
+				</a>
+				<div class="hide-panel mt-1">
+					<div class="option_section">
+					<input type="checkbox" id="check_ref" checked="true" />
+					<label for="check_ref">Buscar por referencia</label>
+					<input type="text" id="reference_option" class="xRef_editable" value="`+reference_option_v+`"/>
+				</div>
+				<br/>
+				<div class="option_section">
+					<input type="checkbox" id="check_other" />
+					<label for="check_other">Buscar por: </label>
+					<div style="padding: .5rem 1rem;">
+						<div>
+							<label>Fecha de: </label>
+							<select id="select_option" class="xAnother_editable">
+								<option value="Creada">Creación</option>
+								<option value="Aprobada">Finalización</option>
+							</select>
+						</div>
+						<div>
+							<label>Del: </label>
+							<input type="date" id="start_date_option" class="xAnother_editable" value="`+start_date_option_v+`"/>
+							<label> al: </label>
+							<input type="date" id="end_date_option" class="xAnother_editable" value="`+end_date_option_v+`"/>
+						</div>
+						<br/>
+						<div>
+							<input type="text" id="text_option" class="xAnother_editable" placeholder="Nombre del emisor o receptor, referencia, asunto o cuerpo" style="min-width: 25%;" value="`+text_option_v+`"/>
+						</div>
+					</div>
+				</div>
+				<br/>
+				<div>
+					<button id="button_search_option" class="btn btn-sm btn-primary">Buscar</button>
+				</div>
+				</div>
+			</div>
+			`;
+			if(url_params["hide"]!=undefined){
+				$(\'.hide-panel\').hide();
+				f=true;
+			}
+			let date = new Date();
+			let hoy = new Date();
+			date.setMonth(date.getMonth()-3); //menos 3 mese del mes actual
+			let dateFormated = date.toISOString().slice(0,10);
+			let date_hoy = hoy.toISOString().slice(0,10);
+			if($("#start_date_option").val()=="")$("#start_date_option").val(dateFormated);
+			if($("#end_date_option").val()=="")$("#end_date_option").val(date_hoy);
+			if (filter_sol!="archivadas"){ $(".printTable").html(""); }
+
+			if(option_selected=="otros"){
+				viewerControlOptions("xAnother_editable","xRef_editable");
+				$("#check_other").prop("checked",true);
+				$("#check_ref").prop("checked",false);
+			}
+			else{
+				viewerControlOptions("xRef_editable","xAnother_editable");
+				$("#check_other").prop("checked",false);
+				$("#check_ref").prop("checked",true);
+			}
+
+			setEventsForOptions();
+
+			if(select_option_v!="")$("#select_option").val(select_option_v);
+		}
+
+		function setEventsForOptions(){
+			const xRef_check = document.querySelector("#check_ref");
+			const xAnother_check = document.querySelector("#check_other");
+			const button_search = document.querySelector("#button_search_option");
+
+			xRef_check.addEventListener("click", function(){
+				xRef_check.checked = true;
+				xAnother_check.checked=false;
+				viewerControlOptions("xRef_editable","xAnother_editable");
+			});
+			xAnother_check.addEventListener("click", function(){
+				xAnother_check.checked = true;
+				xRef_check.checked=false;
+				viewerControlOptions("xAnother_editable","xRef_editable");
+			});
+
+			button_search.addEventListener("click", function(){
+				let params = "";
+				if(xRef_check.checked){
+					params += "&search=referencia";
+					params += "&text_search="+$("#reference_option").val();
+				}
+				else if(xAnother_check.checked){
+					params += "&search=otros";
+					params += "&date_of="+$("#select_option").val();
+					params += "&init="+$("#start_date_option").val();
+					params += "&end="+$("#end_date_option").val();
+					params += "&text_search="+$("#text_option").val();
+				}
+				if(params!="") submit_search(params);
+			});
+		}
+
+		function submit_search(params)
+		{
+			window.location.href="./?filter=archivadas"+params+"&hide=true";
+		}
+
+		var add_sol_modal = document.querySelector(".add_sol_modal");
+		var add_sol_modal_btn = document.querySelector("#add_sol_btn");
+	
+		if(add_sol_modal_btn) add_sol_modal_btn.addEventListener("click", e=>{
+			add_sol_modal.classList.remove("hidde_control");
+			if($(".add_sol_modal").children().length == 0) {loadModal();}
+		});
+
+		function close_modal()
+		{
+			if(add_sol_modal)add_sol_modal.classList.add("hidde_control");
+		}
+		function edit_sol(pk)
+		{
+			window.location.href="./"+pk+"/";
+		}
+
+		var filter_tabs = document.querySelector("#filter-tabs");
+		
+		function focus_filter(btn)
+		{
+			if(filter_tabs) filter_tabs.childNodes.forEach(b=>{
+				b.style.border = "none";
+				b.style.borderBottom = "4px solid transparent";
+			});
+
+			$("#"+btn).css("border-bottom","4px solid #dc3545");
+			if (btn=="archivadas") { 
+				show_options(); 
+				$(".input_search").addClass("hidde_control");
+				if ("#<@filter_selected>"!="archivadas")
+				{
+				 	$(".printTable").attr("style","height:0% !important");
+				}
+			 }
+		}
+
+		$("#progress_range").change(e=>{
+			$("#progress_value").text($("#progress_range").val());
+		});
+		
+		function loadModal()
+		{
+			invoque(function(data){
+				$(".add_sol_modal").html(data);
+			},
+			function(data){
+				
+			});
+		}
+
+		function invoque(succes, fail)
+		{
+			$.ajax({
+			type: "GET",
+			url: "./_new/?_output=raw",
+			data:"",
+			dataType: "html",
+			processData: false,
+			success: function(r){
+				succes(r);
+			},
+			error: function(r){
+				alert("Ocurrió un error al invocar el servicio.");
+			}
+		});
+		}
+
+		function viewerControlOptions(showElements, hiddeElements){
+			let show = document.querySelectorAll("."+showElements);
+			let hidde = document.querySelectorAll("."+hiddeElements);
+			
+			show.forEach(s=>s.removeAttribute("disabled"));
+			hidde.forEach(h=>h.setAttribute("disabled","disabled"));
+		}
+
+		var modify_btn = document.querySelector("#modify_btn");
+		var cancel_btn = document.querySelector("#cancel_btn");
+		var acept_btn = document.querySelector("#acept_btn");
+		var calcel_sol_btn = document.querySelector("#Cancelar_op_btn");
+
+		if (modify_btn) modify_btn.addEventListener("click", e => {
+			cancel_btn.classList.remove("hidde_control");
+			cancel_btn.classList.add("show_control");
+			acept_btn.classList.remove("hidde_control");
+			acept_btn.classList.add("show_control");
+			modify_btn.classList.remove("show_control");
+			modify_btn.classList.add("hidde_control");
+			if(calcel_sol_btn)calcel_sol_btn.classList.add("hidde_control");
+			if(calcel_sol_btn)calcel_sol_btn.classList.remove("show_control");
+		});
+
+		if(cancel_btn) cancel_btn.addEventListener("click", e => {
+			cancel_btn.classList.remove("show_control");
+			cancel_btn.classList.add("hidde_control");
+			acept_btn.classList.remove("show_control");
+			acept_btn.classList.add("hidde_control");
+			modify_btn.classList.remove("hidde_control");
+			modify_btn.classList.add("show_control");
+			if(calcel_sol_btn)calcel_sol_btn.classList.remove("hidde_control");
+			if(calcel_sol_btn)calcel_sol_btn.classList.add("show_control");
+		});
+		function setDates(){
+			let inicio_previsto = document.querySelector("#inicio_previsto");
+			let cierre_previsto = document.querySelector("input[name=cierre_previsto]");
+			if (inicio_previsto)
+			{
+				if (inicio_previsto.value == "#<@date_now_inicio>" && cierre_previsto.value == "#<@date_now_cierre>")
+				{
+					let fechaInicio = new Date("#<@date_now_inicio>");
+					let fechaCierre = new Date("#<@date_now_cierre>");
+					
+					fechaInicio.setDate(fechaInicio.getDate() + #<@inicio_previsto>);
+					fechaCierre.setDate(fechaCierre.getDate() + #<@cierre_previsto>);
+					
+					inicio_previsto.value = setFormat(fechaInicio, "yyyy-MM-ddTHH:mm");
+					cierre_previsto.value = setFormat(fechaCierre, "yyyy-MM-ddTHH:mm");
+				}
+			}
+			
+		}
+		function setFormat(date, format){
+			const year = date.getFullYear().toString();
+			const month = (date.getMonth()+1).toString();
+			const day = date.getDate().toString();
+			const hour = date.getHours().toString();
+			const minutes = date.getMinutes().toString();
+			
+			format = format.replace("yyyy",year);
+			format = format.replace("MM",month.padStart(2,"0"));
+			format = format.replace("dd",day.padStart(2,"0"));
+			format = format.replace("HH",hour.padStart(2,"0"));
+			format = format.replace("mm", minutes.padStart(2,"0"));
+
+			return format;
+		}
+
+		function getReference()
+		{
+			const ref_auto_btn = document.querySelector("#ref_auto_btn");
+			const referencia = document.querySelector("#referencia");
+
+			if(referencia)referencia.addEventListener("keyup", function(){
+				if(referencia.value=="")
+					ref_auto_btn.classList.remove("hidde_control");
+				else
+					ref_auto_btn.classList.add("hidde_control");
+			});
+			if(ref_auto_btn) ref_auto_btn.addEventListener("click", function(){
+				ref_auto_btn.classList.add("hidde_control");
+				referencia.value="<A>";
+			});
+			// const referencia = document.querySelector("#referencia");
+			// if (referencia)
+			// {
+			// 	referencia.addEventListener("change", function(){
+			// 		referencia.value=referencia.value.padStart(5,0);
+			// 		$("input[name=referencia]").val("S-"+referencia.value);
+			// 	});
+			// 	if (referencia.value == "")
+			// 	{
+					
+			// 		var parametros={"bd":"#<@("$database")>"}
+			// 		$.ajax({
+			// 			type: "POST",
+			// 			url: "/get_reference.reference",
+			// 			data: parametros,
+			// 			success: function (res) {
+			// 				if (res.success)
+			// 				{
+			// 					referencia.value= res.referencia.slice(2);
+			// 					$("input[name=referencia]").val("S-"+referencia.value);
+			// 				}
+			// 				else{
+			// 					referencia.value = "00001";
+			// 					$("input[name=referencia]").val("S-"+referencia.value);
+			// 				}
+			// 			},
+			// 			error: function (result) {
+			// 				
+			// 			}
+			// 		});
+			// 	}
+			// }	
+		}
+
+		var input_search = document.querySelector("#buscador_sol");
+		if(input_search) input_search.addEventListener("input", function(){
+			let input_text = input_search.value.toLowerCase();
+			let result = null;
+
+			if (input_text.trim() == "") result = datos_solicitud;
+			else {result = datos_solicitud.filter(word => filter_search.some(filter => word[filter].toLowerCase().includes(input_text)));}
+			const table_body = document.querySelector("#sol_table tbody");
+			table_body.innerHTML = "";
+
+			result.forEach(solicitud => {
+				let color = 9;
+				if (filter_sol == "recibidas"){ color=solicitud["color_receptor"] ?? 9; }
+				else { color=solicitud["color"]; }
+				
+				const tr = document.createElement("tr");
+				tr.setAttribute("onclick","edit_sol("+solicitud.sys_pk+");");
+				tr.setAttribute("style","border-left:6px solid " + tableColor(color,false));
+
+				for(var i=0; i < fields_sol.length; i++)
+				{
+					let field = fields_sol[i].replace("%0A","\\n");
+					let title = titles_sol[i].replace("%0A","\\n");
+					
+					let font_size = 1;
+					if (field=="inicio" || field=="cierre"){ font_size = .7 }
+
+					let border_size = 3;
+					if (tableColor(color,true)=="#DBDDDF" || tableColor(color,true)=="#FCFCFC"){ border_size=1 }
+					
+					const td = document.createElement("td");
+					td.setAttribute("title",title);
+					td.setAttribute("style","font-size:"+font_size+"rem; border-bottom:"+border_size+"px solid "+tableColor(color,true)+";");
+					td.innerHTML = solicitud[field];
+					tr.append(td);
+				}
+				table_body.append(tr);
+			});
+		});
+
+		function tableColor(numColor, defaultBorder){
+			let color = "#FFF";
+			switch(numColor)
+			{
+				case 0:
+					if(defaultBorder) color="#DBDDDF";
+					break;
+				case 1:
+					color="#dc3545";
+					break;
+				case 2:
+					color="#007bff";
+					break;
+				case 3:
+					color="#ffc107";
+					break;
+				case 4:
+					color="#fd7e14";
+					break;
+				case 5:
+					color="#28a745";
+					break;
+				case 6:
+					color="#6f42c1";
+					break;
+				default:
+					color="#FCFCFC"
+					break;
+			}
+			return color;
+		}
+
+		var tabs = document.querySelectorAll(".tab-nav-item-link");
+		if(tabs) tabs.forEach(e=>{
+			e.addEventListener("click", f=>{
+				if (e.id == "progress-nav-link") {
+					if($("#modify_btn").text()=="Modificar progreso")
+					{
+						$("#modify_btn").removeClass("hidde_control");
+					}
+				}
+				else{
+					if($("#modify_btn").text()=="Modificar progreso")
+					{
+						$("#modify_btn").addClass("hidde_control");
+						$("#acept_btn").addClass("hidde_control");
+						$("#cancel_btn").addClass("hidde_control");
+						$("#progress_range").attr("disabled","disabled");
+					}
+					
+				}
+			});
+		});
+		$(document).ready(function(){
+			getReference();
+			setDates();
+		});
+
+		var inputEditables = document.querySelectorAll(".editable");
+		function readOnly(val)
+		{
+			inputEditables.forEach(e => {
+				e.readOnly = val;
+
+				if(val) e.setAttribute("disabled","disabled")
+				else e.removeAttribute("disabled");
+
+			});
+		}
+		function disableEspecificElements(val,...ids)
+		{
+			ids.forEach(e=>{
+				if (val) { $("#"+e).attr("disabled","disabled"); }
+				else { $("#"+e).removeAttr("disabled"); }
+			});
+		}
+		var disableElementsOnFinish = document.querySelectorAll(".disableOnFinish");
+		function disableOnFinish(val)
+		{
+			disableElementsOnFinish.forEach(e=>{
+				if(val) e.setAttribute("disabled","disabled")
+				else e.removeAttribute("disabled");
+			});
+		}
+
+		function cambio_status(status,sys_pk="")
+		{
+			if (sys_pk=="")
+			{
+				sys_pk="#<@("./sys_pk")>";
+			}
+			var parametros={"bd":"#<@("$database")>","act":$("#"+status.id).attr("value"),"sys_pk":sys_pk,"ws":"#<@ws>"+"","email":$("#email").val()}
+			$.ajax({
+					type: "POST",
+					url: "/change_status.status",
+					data: parametros,
+					success: function (res) {
+						if(res.success){
+							window.location.reload();
+						}
+						else{alert(res.message);}
+					},
+					error: function (result) {
+						
+					}
+				});
+		}
+		function selectColor(n,c, btnSelected)
+		{
+			$("#color").val(n);
+
+			$("#colorSolicitud").css("background-color", c);
+
+			var group_colors = document.querySelector("#group-colors");
+			group_colors.childNodes.forEach( b => {
+				b.classList.remove("conBorde");
+				b.classList.add("sinBorde");
+			});
+
+			btnSelected.classList.remove("sinBorde");
+			btnSelected.classList.add("conBorde");
+
+			var parametros = {"id_color":n, "id_solicitud":$("#sys_pk").val(),"bd":"#<@("$database")>","emisor":#<@emisor>+"","receptor":#<@receptor>+""}
+
+			$.ajax({
+					type: "POST",
+					url: "/change_color.color",
+					data: parametros,
+					success: function (res) {
+						
+					},
+					error: function (result) {
+						
+					}
+				});
+		}
+
+		// ------CHAT----------
+
+		var solicitud = $("#sys_pk").val();
+		var uidChat = $("#uidChat").val();
+		var autorNombre = $("#autorNombre").val();
+		var elementoLista = document.getElementsByClassName(uidChat);
+
+		function agregarBitacora()
+		{
+			if ($("#textoBitacora").val() != "")
+			{
+				$("#btnAgregar").prop("disabled", true);
+				$("#textoBitacora").prop("disabled", true);
+				$.post("/#<@ws>/solicitudes/gs_bit_solicitud/", {
+			      "solicitud": solicitud,
+			      "texto": $("#textoBitacora").val(),
+			      "autor": uidChat,
+			      "autor_nombre": autorNombre
+			    },function(data) {
+				  	$("#btnAgregar").prop("disabled", false);
+					$("#textoBitacora").prop("disabled", false);
+				  	$("#textoBitacora").val("");
+					$("#textoBitacora").focus();
+					traerChat(agregarClaseElementoChat,removerSmall,hacerScrollChat),
+				  	agregarImagenesBitacora(data.sys_pk ,$("#cadenaArchivosBitacora").val())
+			  });
+			}
+			else
+			{
+				alert("para agregar debe escribir en el campo de texto");
+			}
+		
+		}
+
+		function agregarImagenesBitacora(bit_solicitud,ruta)
+		{
+			if (ruta != ""){
+				$.post("/#<@ws>/solicitudes/gs_bit_solicitud_archivo/",{
+				"bit_solicitud": bit_solicitud,
+				"cadena_archivo": ruta,
+				"sys_guid": $("#sys_guid").val()
+				},function(data) {
+					$("#cadenaArchivosBitacora").val("");
+					$("#infoArchivosTemporalesBitacora").empty();
+					traerChat(
+						agregarClaseElementoChat,
+						removerSmall,
+						hacerScrollChat
+					)
+				});
+			}
+		}
+
+		function traerChat(addclase,removeclase,scroll)
+		{
+			if(solicitud==undefined){return;}
+				$.ajax({
+				url:"/#<@ws>/solicitudes/gs_bit_solicitud/?solicitud="+solicitud+"&_output=raw",
+				type:"GET",
+				dataType: "html",
+				success: function(data){
+					$("#chat").html(data)
+					addclase();
+					removeclase();
+					hacerScrollChat();
+				}
+				});
+			
+					
+		}
+
+		var classEtiquetaSmall = "me-"+uidChat;
+
+		var etiquetaSmall = document.getElementsByClassName(classEtiquetaSmall);
+
+		function removerSmall()
+		{
+			for(var t = 0; t < etiquetaSmall.length; t++)
+			{
+				etiquetaSmall[t].style.display = "none";
+			}
+		}
+
+		function agregarClaseElementoChat()
+		{
+			for(var i = 0; i < elementoLista.length; i++)
+			{
+				elementoLista[i].className += " justify-content-end text-end";
+			}
+		}
+
+		document.addEventListener("DOMContentLoaded", () => {
+			document.querySelectorAll("input[type=text]").forEach( node => node.addEventListener("keypress", e => {
+				if(e.keyCode == 13) {
+				e.preventDefault();
+				}
+			}))
+    	});
+
+		$("#textoBitacora").on("keyup", function (e) {
+		var keycode = e.keyCode || e.which;
+			if (keycode == 13) {
+				agregarBitacora();
+			}
+		});
+
+		function hacerScrollChat()
+		{
+			if (($("#sys_pk").val() > 0))
+			{
+				$("#chat").animate({ scrollTop: $("#chat")[0].scrollHeight}, 450);
+			}
+			
+		}
+
+		
+
+		// ---- SUBIR ARCHIVOS ----
+
+		var archivosBiblioteca = document.querySelector("#archivosBiblioteca");
+		// var archivosTemporalesBiblioteca = document.querySelector("#archivosTemporalesBiblioteca");
+		var infoArchivosTemporalesBiblioteca = document.querySelector("#infoArchivosTemporalesBiblioteca");
+		var j=1;
+		$("#archivosBiblioteca").change(function() {  
+			 if (archivosBiblioteca.files.length == 0) {
+                    console.log("No hay archivos");
+					// $("#infoArchivosTemporalesBiblioteca").empty();
+                } 
+				else {
+					
+					var namefile="";
+					var formDataBiblioteca = new FormData();
+					for (var i = 0; i < archivosBiblioteca.files.length; i++) {
+                        var file = archivosBiblioteca.files[i];
+						var li = document.createElement("li");
+						li.setAttribute("class", "list-group-item");
+						li.textContent = file.name;
+						name_file=file.name;
+						$("#infoArchivosTemporalesBiblioteca > li").each(function(index,element){
+							var ext=$(element).text().split(".");
+							if($(element).text()==file.name){
+								ext=ext[ext.length-1];
+								var t=$(element).text().replace("."+ext,"("+j+")");
+								$(element).text(t+"."+ext);
+								name_file=$(element).text();
+								j++;
+							}
+						});
+						// console.log(name_file);
+						infoArchivosTemporalesBiblioteca.appendChild(li);
+						formDataBiblioteca.append(name_file, file);
+					}
+					
+						$.ajax({
+							type: "POST",
+							url: "/up_file.service",
+							data: formDataBiblioteca,
+							cache: false,
+							contentType: false,
+							processData: false,
+							success: function (res) {
+								$("#archivosBiblioteca").val("");
+								var archivosTemporales = res.uuidArchivosTemporales;
+								var cadenaArchivosBiblioteca = $("#cadenaArchivosBiblioteca");
+								cadenaArchivosBiblioteca.val(cadenaArchivosBiblioteca.val()+archivosTemporales);
+							},
+							error: function (result) {
+							}
+						});
+				}
+		});
+
+		var archivosBitacora = document.querySelector("#archivosBitacora");
+		var infoArchivosTemporalesBitacora = document.querySelector("#infoArchivosTemporalesBitacora");
+		var t=1;
+		$("#archivosBitacora").change(function() { 
+			if (archivosBitacora.files.length == 0) {
+                    console.log("No hay archivos");
+			}else{
+				$("#infoArchivosTemporalesBitacora").html("<p>enviando...<span class=\'spinner-border\'></span></p>");
+				var formDataBitacora = new FormData();
+				for (var b = 0; b < archivosBitacora.files.length; b++) {
+					var file = archivosBitacora.files[b];
+					var li = document.createElement("li");
+					li.setAttribute("class", "list-group-item");
+					li.textContent = file.name;
+					name_file=file.name;
+					$("#infoArchivosTemporalesBitacora > li").each(function(index,element){
+							var ext=$(element).text().split(".");
+							if($(element).text()==file.name){
+								ext=ext[ext.length-1];
+								var b=$(element).text().replace("."+ext,"("+t+")");
+								$(element).text(b+"."+ext);
+								name_file=$(element).text();
+								t++;
+							}
+						});
+					infoArchivosTemporalesBitacora.appendChild(li);
+					formDataBitacora.append(name_file, file);
+				}
+				
+				$.ajax({
+					type: "POST",
+					url: "/up_file.service?bit=true",
+					data: formDataBitacora,
+					cache: false,
+					contentType: false,
+					processData: false,
+					success: function (res) {
+						$("#archivosBitacora").val("");
+						var archivosTemporales = res.uuidArchivosTemporales;
+						var cadenaArchivosBitacora = $("#cadenaArchivosBitacora");
+						cadenaArchivosBitacora.val(cadenaArchivosBitacora.val()+archivosTemporales);
+						 // agregarImagenesBitacora($("#sys_pk").val() ,$("#cadenaArchivosBitacora").val());
+
+						$.post("/#<@ws>/solicitudes/gs_bit_solicitud/", {
+					      "solicitud": solicitud,
+					      "texto": "",
+					      "autor": uidChat,
+					      "autor_nombre": autorNombre
+					    },function(data) {
+						  	$("#btnAgregar").prop("disabled", false);
+							$("#textoBitacora").prop("disabled", false);
+						  	$("#textoBitacora").val("");
+							$("#textoBitacora").focus();
+							traerChat(agregarClaseElementoChat,removerSmall,hacerScrollChat),
+						  	agregarImagenesBitacora(data.sys_pk ,$("#cadenaArchivosBitacora").val())
+					  });
+					  $("#infoArchivosTemporalesBitacora").text("");
+					},
+					error: function (result) {
+						$("#infoArchivosTemporalesBitacora").text("");
+						$("#archivosBitacora").val("");
+						$("#infoArchivosTemporalesBitacora").html("");
+						alert("Ocurrio un error,vuelva intentarlo. ");
+
+					}
+				});
+				
+				
+			}
+		});
+		
+		//subir archivos entrgables--------------------------
+		var archivosEntregable = document.querySelector("#fileEntregables");
+		var infoTempEntregables=document.querySelector("#infoArchivosEntregables");
+		$("#fileEntregables").change(function(){
+			if(archivosEntregable.files.length==0){}
+			else{
+				var formDataEntregables = new FormData();
+				for(i=0;i<archivosEntregable.files.length;i++)
+				{
+					var file = archivosEntregable.files[i];
+					var li = document.createElement("li");
+					li.setAttribute("class", "list-group-item");
+					li.textContent = file.name;
+					name_file=file.name;
+					$("#infoArchivosEntregables > li").each(function(index,element){
+							var ext=$(element).text().split(".");
+							if($(element).text()==file.name){
+								ext=ext[ext.length-1];
+								var b=$(element).text().replace("."+ext,"("+t+")");
+								$(element).text(b+"."+ext);
+								name_file=$(element).text();
+								t++;
+							}
+						});
+					infoTempEntregables.appendChild(li);
+					formDataEntregables.append(name_file, file);
+				}
+				$.ajax({
+					type: "POST",
+					url: "/up_file.service?res=true",
+					data: formDataEntregables,
+					cache: false,
+					contentType: false,
+					processData: false,
+					success: function (res) {
+						$("#fileEntregables").val("");
+						var archivosTemporales = res.uuidArchivosTemporales;
+						var cadenaArchivosEntregables = $("#cadenaArchivosEntregables");
+						cadenaArchivosEntregables.val(cadenaArchivosEntregables.val()+archivosTemporales);
+						sendFile();
+					},
+					error: function (result) {
+					}
+				});
+			}
+
+		});
+		//send file Entregables-------------------------------------
+		function sendFile(){
+			var tempEntregables=$("#cadenaArchivosEntregables");
+			if(tempEntregables.val()=="" || tempEntregables.val()==","){alert("No ha seleccionado ningún archivo.");}
+			else{
+				var data={
+					solicitud:"#<@("./sys_guid")>",
+					result:true,
+					files:$("#cadenaArchivosEntregables").val()
+				}
+				$.ajax({
+					url:"/up_file.service",
+					type:"POST",
+					dataType: "html",
+					data:data,
+					success: function(data){
+						var res= JSON.parse(data);
+						if(res.success)
+						{
+							traerEntregables();
+							$("#infoArchivosEntregables").empty();
+						}
+					}
+				});
+			}
+			
+		}
+		function traerEntregables(){
+			// console.log("#<@ws>");
+			var solicitud="#<@("./sys_guid")>";
+			if(solicitud!=""){
+				$.ajax({
+					url:"/#<@ws>/solicitudes/gs_bit_solicitud/?solicitud="+solicitud+"&result=true&_output=raw",
+					type:"GET",
+					dataType: "html",
+					success: function(data){
+
+						$("#result").html(data);
+					}
+				});
+			}
+			
+		}
+		$("#add_file").change(function() { 
+			var formDataBitacora = new FormData();
+			for(i=0;i<this.files.length;i++)
+			{
+				formDataBitacora.append(this.files[i].name, this.files[i]);
+			}
+			formDataBitacora.append("add_files",true);
+			formDataBitacora.append("sys_guid","#<@("./sys_guid")>");
+			
+				$.ajax({
+					type: "POST",
+					url: "/up_file.service",
+					data: formDataBitacora,
+					cache: false,
+					contentType: false,
+					processData: false,
+					success: function (res) {
+						$("#add_file").val("");
+						// var res=JSON.parse(res);
+						if(res.success){window.location.reload();}
+						else{alert(res.message);}
+					},
+					error: function (result) {
+					}
+				});
+		});
+		// ---- DESCARGAR ARCHIVOS --- 
+
+		function descargarArchivo(guid,tipo,name_file,real_name="")
+		{
+			window.open("/download_file.file?guid="+guid+"&tipo="+tipo+"&file="+name_file+"&name="+real_name);
+		}
+
+		window.onload = function() {
+			traerChat(agregarClaseElementoChat,removerSmall);
+			traerEntregables();
+			
+		};
+
+		//-----Eliminar Archivos bitacora---
+		function delete_file_biblioteca(guid,tipo,name_file){
+			var res=confirm("¿Esta seguro de eliminar el archivo "+name_file+"?"+"#<@path_delete_file_bitacora>");
+			if(!res)
+				return;
+
+			definitive.rest("?act_delete_file=true&guid="+guid+"&tipo="+tipo+"&file="+name_file,"DELETE",null,
+			function(entity){
+				//Operación exitosa
+				window.location.reload();
+			},
+			function(error){
+				alert(error)
+				//Error de aplicación
+			},
+			function(error){
+				var er=JSON.stringify(error);
+				var p=JSON.parse(er);
+				alert(p.responseJSON.message);
+			});
+
+		}
+
+		//eliminar archivos chat----
+		function delete_file_bitacora(guid,tipo,name_file,real_name){
+			var res=confirm("¿Esta seguro de eliminar el archivo "+real_name+"?");
+			if(!res)
+				return;
+
+			definitive.rest("#<@path_delete_file_bitacora>?act_delete_file=true&delete_file_bd=true&guid="+guid+"&tipo="+tipo+"&file="+name_file,"DELETE",null,
+			function(entity){
+				traerChat(
+						agregarClaseElementoChat,
+						removerSmall,
+						hacerScrollChat
+					)
+				//Operación exitosa
+				// window.location.reload();
+			},
+			function(error){
+				alert(error)
+				//Error de aplicación
+			},
+			function(error){
+				var er=JSON.stringify(error);
+				var p=JSON.parse(er);
+				alert(p.responseJSON.message);
+			});
+		}
+		//elimina archigos entregables--------------------------------------
+		function delete_file_Entregable(guid,tipo,name_file){
+			var res=confirm("¿Esta seguro de eliminar el archivo "+name_file+"?");
+			if(!res)
+				return;
+
+			definitive.rest("#<@path_delete_file_bitacora>?act_delete_file=true&delete_file_bd=true&guid="+guid+"&tipo="+tipo+"&file="+name_file,"DELETE",null,
+			function(entity){
+				traerEntregables();
+				//Operación exitosa
+				// window.location.reload();
+			},
+			function(error){
+				alert(error)
+				//Error de aplicación
+			},
+			function(error){
+				var er=JSON.stringify(error);
+				var p=JSON.parse(er);
+				alert(p.responseJSON.message);
+			});
+
+		}
+
+		$("#list_select").change(function(){
+			var idrec="#<@("./receptor")>";
+			var id=$(this).val();
+			var lista=JSON.parse(\'#<@listaUsuarios>\');
+			lista.forEach(e=>{
+				if(e.id==id)
+				{
+					$("#email").val(e.email);
+				}
+			});
+			
+		});
+		
+
+
+
+	'
+}

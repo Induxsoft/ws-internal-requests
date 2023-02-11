@@ -1,0 +1,340 @@
+#include "dkli.dkh"
+#!
+
+module "list_view_solicitudes"
+{
+	#include "functions.dkh"
+	#include "serialize.dkh"
+	#include "cookies.dkl"
+	#include "dbr.dkh"
+    #include "uielements.dkl"
+	#include "config.dk"
+	do _map_function(-1,"System.DateTime","Compare","dtcompare","*System.DateTime,*System.DateTime","#")
+
+
+    do @context.begin(@crud_context)
+	ref @solicitudes = @("&./")
+	// do rise_error(99,to.json(@solicitudes))
+	@filter_selected = @("parameters/filter")
+
+	if @filter_selected == 'enviadas' || @filter_selected=="borradores"{
+		@fields = "receptor_nombre"
+		@titles = "Para"
+	}
+	else if @filter_selected=="aprobadas" || @filter_selected=="archivadas"{
+		@fields = "emisor_nombre"
+		@titles = "De / Para"
+	}
+	else {
+		@fields = "emisor_nombre"
+		@titles = "De"
+	}
+
+	@fields = @fields + ",asunto,estado,creacion,inicio,cierre"
+	@titles = @titles + ",Asunto,Estado,Creacion,Inicio,Cierre"
+	@titles_text = replace(@titles,"\n","%0A")
+	@user_id = @('http/session/user/uid')
+
+
+	//============ FUNCIONES GENERALES
+	formatDateTime::date
+	{
+		if date == "" {return ""}
+		fecha = date_str(str2dt(date),"yyyy-MM-dd HH:mm:ss")
+		
+		return fecha
+	}
+	new params
+	{
+		@"uid_rec": @('http/session/user/uid')
+	}
+	new def_receptores
+	{
+		@"datatable*":dbr.list(@("&database"), "select sys_pk, userid, username from tuser where userid != @uid_rec", params)
+		member "attributes"
+		{
+			@"name":"receptor"
+			@"class":"id_receptor border-0 p-2"
+		}
+		@"text_field":"username"
+		@"value_field":"userid"
+		@"selected":@('./receptor')
+		@"first_value":" "
+		@"first_text":" "
+	}
+	new def_tipo
+	{
+		@"datatable*":dbr.list(@("&database"), "select sys_pk, codigo, descripcion from gs_tipo_solicitud", @null)
+		member "attributes"
+		{
+			@"name":"tipo"
+			@"class":"w-100"
+		}
+		@"text_field":"descripcion"
+		@"value_field":"sys_pk"
+		@"selected":@('./tipo')
+	}
+
+	TableColor::colorTable,&defaulBorder
+	{
+		color = "#FFF"
+	     switch colorTable
+	    {
+	        case 0
+	        {
+	            if defaulBorder {color = "#DBDDDF"}
+	        }
+	        case 1
+	        {
+	            color = "#dc3545"
+	        }
+	        case 2
+	        {
+	            color = "#007bff"
+	        }
+	        case 3
+	        {
+	            color = "#ffc107"
+	        }
+	        case 4
+	        {
+	            color = "#fd7e14"
+	        }
+	        case 5
+	        {
+	            color = "#28a745"
+	        }
+	        case 6
+	        {
+	            color = "#6f42c1"
+	        }
+	        default
+	        {
+	            color = "#FCFCFC"
+	        }
+	        return color
+	    }
+	}
+	//============ TABLA DE SOLICITUDES
+	printTable::
+	{
+		#$
+		div(style="height: 80% !important;overflow-y: auto;")
+		{
+			table(class="table tab-pane" id="sol_table")
+			{
+				#!
+				ref filed_list = split(@fields,",")
+				ref title_list = split(@titles,",")
+				#$
+				thead(style="background-color: #fff !important; z-index: 100 !important;") // títulos
+				{
+					tr
+					{
+						#! for i=0; i<list.count(filed_list)
+						{
+							id=""
+							title = list.str(title_list,i)
+							if contains(title,"/"){id="de_para"}
+							#$ th(class="h6 border-0" style="position: sticky !important;top:0 !important;background-color:#fff;" id="#<ifstr(id!='',id,title)>"){$"#<title>"}
+						}
+					}
+				}
+				tbody // filas
+				{
+					#! for i=0; i<@count(@solicitudes)
+					{
+						ref sol = @item(@solicitudes, i)
+						color=9
+						if (@filter_selected=="enviadas" || @filter_selected=="borradores" || @filter_selected=="archivadas"){color=@@(sol,"#color")}
+						else if @filter_selected=="recibidas"{color=@@(sol,"#color_receptor")}
+						else{color=@@(sol,"#color_receptor")}
+
+						if @filter_selected=="aprobadas" || @filter_selected=="archivadas"
+						{
+							if @@(sol,"emisor")==@user_id
+							{
+								sol<"emisor_nombre">:"Para: "+@@(sol,"receptor_nombre")
+							}else if @@(sol,"receptor")==@user_id{
+								sol<"emisor_nombre">:"De: "+@@(sol,"emisor_nombre")
+							}	
+						}
+						
+						#$
+						tr(onclick="edit_sol('#<@@(sol,'sys_pk')>')" style="border-left:6px solid #<TableColor(color,@false)>;")
+						{
+							#!
+							icon_status=""
+							cod_status=@@(sol,"#status")
+							switch cod_status
+	                        {
+	                            case 1{break}
+	                            case 10{break}
+	                            case 11{break}
+	                            case 20{break}
+	                            case 30{break}
+	                            case 50{
+	                            	icon_status='<i class="fa fa-check-double" id="btn_status"></i>'
+	                            	break}
+	                            case 90{break}
+	                            case 91{break}
+	                            default{break}
+	                        }
+							for j=0; j<list.count(filed_list)
+							{
+								field = list.str(filed_list,j)
+								title = list.str(title_list,j)
+								icon_reloj_progess=""
+								_status=""
+								f=@@(sol,"cierre")
+								dias_retraso=""
+								if field=="cierre" && not(contains(f,">")) && f!=""
+								{
+									if dtcompare(str2dt(date_str(now(),"yyyy-MM-dd")),str2dt(f))>0{
+										dias_retraso=@@(sol,"ret_cierre")
+										icon_reloj_progess='<svg style="color:red"  xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-alarm" viewBox="0 0 16 16">
+											  <path d="M8.5 5.5a.5.5 0 0 0-1 0v3.362l-1.429 2.38a.5.5 0 1 0 .858.515l1.5-2.5A.5.5 0 0 0 8.5 9V5.5z"/>
+											  <path  d="M6.5 0a.5.5 0 0 0 0 1H7v1.07a7.001 7.001 0 0 0-3.273 12.474l-.602.602a.5.5 0 0 0 .707.708l.746-.746A6.97 6.97 0 0 0 8 16a6.97 6.97 0 0 0 3.422-.892l.746.746a.5.5 0 0 0 .707-.708l-.601-.602A7.001 7.001 0 0 0 9 2.07V1h.5a.5.5 0 0 0 0-1h-3zm1.038 3.018a6.093 6.093 0 0 1 .924 0 6 6 0 1 1-.924 0zM0 3.5c0 .753.333 1.429.86 1.887A8.035 8.035 0 0 1 4.387 1.86 2.5 2.5 0 0 0 0 3.5zM13.5 1c-.753 0-1.429.333-1.887.86a8.035 8.035 0 0 1 3.527 3.527A2.5 2.5 0 0 0 13.5 1z"/>
+											</svg>'
+									}
+								}
+								if field=="estado"
+								{
+									if @@(sol,"$progreso")!=""
+									{
+										vol=@@(sol,"$progreso")
+										icon_reloj_progess=ftext('<div style="margin: 7px" class="progress" title="#<@@(sol,"estado")>">
+														  <div class="progress-bar progress-bar-striped bg-success progress-bar-animated" role="progressbar" aria-valuenow="#<vol>" aria-valuemin="0" aria-valuemax="100" style="width:#<vol>%">#<vol>%</div>
+														</div>')//ftext('<input title="#<@@(sol,"estado")>" type="range" min="0" max="100" step="10.00" name="progreso" value="#<field.dstr(sol,"progreso",0)>" disabled="disabled"/>')
+										sol<field>:""//@@(sol,"$progreso")+"%"	
+									}
+									if icon_status!=""
+									{
+										// _status=icon_status
+										sol<field>:icon_status+@@(sol,"$"+field)+ftext('<i title=\'#<@@(sol,"estado")> -> click para archivar\' value="archivar" onclick="addArchivadas(event,this,#<@@(sol,"sys_pk")>);" class="fa fa-archive m-1" id="btn_archive"></i>')
+									}
+									
+								}
+								#$ td(title="#<title>" style="font-size:#<ifstr(field=='inicio' || field=='cierre',.7,1)>rem; border-bottom:#<ifstr(TableColor(color,@true)=='#DBDDDF' || TableColor(color,@true)=='#FCFCFC',1,3)>px solid #<TableColor(color,@true)>;"){$"#<icon_reloj_progess+''+_status> #<@@(sol,field)+' '+dias_retraso>"}
+							}
+							#$
+						}	
+					}
+				}
+			}
+		}
+	}
+		
+	
+	#!
+	
+	
+	#$
+	div(class="m-0 row justify-content-center" id="main")
+	{
+						// almacenamos esta url para recordarla al entrar a una página diferente
+		script{$'sessionStorage.setItem("url_solicitudes",window.location.href);'}
+		//============ CUERPO DE LA PÁGINA
+		#$
+		div(class="" id="container" style="margin-top:30px;height:48rem")
+		{
+			button(id="add_sol_btn" class="btn btn-light shadow-sm p-2 mb-2 bg-white")
+			{
+				svg(xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#dc3545" class="bi bi-plus text-primary" viewBox="0 0 16 16"){path(d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z")}
+				$"Agregar"
+			}
+			
+			
+			//============ MODAL PARA CREAR SOLICITUD
+			div(class="add_sol_modal row p-0 border-0")
+			{
+				$""
+			}
+			//============ SECCIONES (RECIBIDOS, ENVIADOS, BORRADORES Y ARCHIVADOS)
+			div(class="sections")
+			{
+				p{$"#<@('error/message')>"}
+				hr(class="m-0 p-0 text-muted"){$""}
+				div(class="bg-transparent p-0 m-0 d-flex flex-wrap" id="filter-tabs")
+				{
+					div(class="btn-lg bg-transparent text-muted boton-nav p-3" id="recibidas" onclick="refreshTable('recibidas');")
+					{
+						svg(xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-inbox-fill" viewBox="0 0 16 16"){path(d="M4.98 4a.5.5 0 0 0-.39.188L1.54 8H6a.5.5 0 0 1 .5.5 1.5 1.5 0 1 0 3 0A.5.5 0 0 1 10 8h4.46l-3.05-3.812A.5.5 0 0 0 11.02 4H4.98zm-1.17-.437A1.5 1.5 0 0 1 4.98 3h6.04a1.5 1.5 0 0 1 1.17.563l3.7 4.625a.5.5 0 0 1 .106.374l-.39 3.124A1.5 1.5 0 0 1 14.117 13H1.883a1.5 1.5 0 0 1-1.489-1.314l-.39-3.124a.5.5 0 0 1 .106-.374l3.7-4.625z")}
+						small{$" Recibidos"}
+					}
+					div(class="btn-lg bg-transparent text-muted boton-nav p-3" id="enviadas" onclick="refreshTable('enviadas');")
+					{
+						svg(xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16"){path(d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z")}
+						small{$" Enviados"}
+					}
+					div(class="btn-lg bg-transparent text-muted boton-nav p-3" id="borradores" onclick="refreshTable('borradores');")
+					{
+						svg(xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-eraser-fill" viewBox="0 0 16 16"){path(d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828l6.879-6.879zm.66 11.34L3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293l.16-.16z")}
+						small{$" Borradores"}
+					}
+					div(class="btn-lg bg-transparent text-muted boton-nav p-3" id="aprobadas" onclick="refreshTable('aprobadas');")
+					{
+						svg(xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-clipboard-check-fill" viewBox="0 0 16 16"){path(d="M6.5 0A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3Zm3 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3Z")path(d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1A2.5 2.5 0 0 1 9.5 5h-3A2.5 2.5 0 0 1 4 2.5v-1Zm6.854 7.354-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 0 1 .708-.708L7.5 10.793l2.646-2.647a.5.5 0 0 1 .708.708Z")}
+						small{$" Finalizados"}
+					}
+					div(class="btn-lg bg-transparent text-muted boton-nav p-3" id="archivadas" onclick="focus_filter('archivadas');")
+					{
+						svg(xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-archive-fill" viewBox="0 0 16 16"){path(d="M12.643 15C13.979 15 15 13.845 15 12.5V5H1v7.5C1 13.845 2.021 15 3.357 15h9.286zM5.5 7h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1zM.8 1a.8.8 0 0 0-.8.8V3a.8.8 0 0 0 .8.8h14.4A.8.8 0 0 0 16 3V1.8a.8.8 0 0 0-.8-.8H.8z")}
+						small{$" Archivados"}
+					}
+					div(class="buscador d-flex align-items-center justify-content-end flex-grow-1")
+					{
+						div(class="input_search d-flex align-items-center p-1 ps-2")
+						{
+							svg(xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16"){path(d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z")}
+							input(type="search" id="buscador_sol" class="border-0 ms-2" placeholder="Buscar...")
+						}
+					}
+				}
+				
+				hr(class="m-0 p-0 text-muted"){$""}
+				div(id="table_section")
+				{$""
+					//============ OPCIONES PARA BUSQUEDA PROFUNDA
+					div(id="deep_search_options")
+					{
+						$""
+					}
+					//============ LISTA DE SOLICITUDES
+					div(class="printTable")
+					{
+						#! do printTable()
+					}
+				}
+			}
+		}
+		#$
+		script(src="https://ws.induxsoft.net/definitive.api.js"){""}
+		script{
+			$"
+			var filter_search = ['referencia','asunto','cuerpo','emisor_nombre','receptor_nombre','estado'];
+			var datos_solicitud = #<to.json(@('&./'))>
+			var filter_sol = '#<@filter_selected>';
+			var fields_sol = ('#<@fields>').split(',');
+			var titles_sol = ('#<@titles_text>').split(',');
+			var url_params = #<to.json(@('&http/request/get'))>
+			"}
+		#!
+		//============ JS
+		#include "gs_solicitud.dkl"	
+		//============ CSS
+		#include "style_gs_solicitud.dkl"
+
+		if @filter_selected != ""
+		{
+			#$ script{$"focus_filter('#<@filter_selected>');"} #!
+		}
+		else
+		{
+			#$ script{$"focus_filter('recibidas');"} // recibidas por defecto
+		}
+	}
+
+	#!
+    do @context.end()
+}

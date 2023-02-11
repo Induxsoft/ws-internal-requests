@@ -1,0 +1,22 @@
+#include "dkli.dkh"
+#!
+module "solicitudes"{
+
+    #include "config.dk"
+
+    // @list_query = "select 
+    // sys_pk, sys_guid, sys_recver, sys_timestamp, DATE_FORMAT(sys_dtcreated, '%Y-%m-%d %H:%i') as sys_dtcreated, sys_deleted, 
+    // solicitud, texto, autor, autor_nombre
+    // from gs_bit_solicitud 
+    // where solicitud=@solicitud
+    // order by sys_dtcreated;"
+
+    @list_query = "SELECT 
+        gs_bit_solicitud.sys_pk, gs_bit_solicitud.sys_guid, DATE_FORMAT(gs_bit_solicitud.sys_dtcreated, '%Y-%m-%d %H:%i') AS sys_dtcreated, gs_bit_solicitud.sys_guid, gs_bit_solicitud.solicitud, gs_bit_solicitud.texto, gs_bit_solicitud.autor, gs_bit_solicitud.autor_nombre, gs_solicitud.sys_guid AS guid_solicitud
+        FROM gs_bit_solicitud 
+        LEFT JOIN gs_solicitud ON solicitud=gs_solicitud.sys_pk
+        WHERE solicitud=@solicitud
+        ORDER BY sys_dtcreated;"
+
+
+}

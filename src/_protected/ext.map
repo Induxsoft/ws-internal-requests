@@ -1,0 +1,5 @@
+.service >  $web/irq.ws.induxsoft.net/ges_solicitud/up_file.service.dkl
+.file >  $web/irq.ws.induxsoft.net/ges_solicitud/download_file.file.dkl
+.color >  $web/irq.ws.induxsoft.net/ges_solicitud/change_color.color.dkl
+.status >  $web/irq.ws.induxsoft.net/ges_solicitud/change_status.dkl
+.reference >  $web/irq.ws.induxsoft.net/ges_solicitud/get_reference.dkl

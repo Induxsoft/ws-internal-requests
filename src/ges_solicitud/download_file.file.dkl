@@ -1,0 +1,35 @@
+#include "dkli.dkh"
+#! //Conmutación a contexto IMPERATIVO
+
+program "ejemplo-BINARIO"
+{
+    #include "functions.dkh" 
+    #include "serialize.dkh"
+    #include "webcl.dkh"
+    #include "config.dk"
+
+    ref getData = @@(@http_context,"&request/get")
+    realname = @@(getData,"name")
+    
+    path=path.concat(@gs_solicitudes_path,@@(getData,"guid"))
+    path=path.concat(path,@@(getData,"tipo"))
+    path=path.concat(path,@@(getData,"file"))
+    // do rise_error(99,to.json(path))
+    url=""
+    if file.exists(path){url=path}
+    // else{do rise_error(00,"no existe")}
+    
+    // do file.wtext("\\\\192.168.0.13\\web\\ws.induxsoft.net\\ges_solicitudes\\t.txt",to.json(@http_context))
+    //Establecer encabezado de respuesta http
+    @http_context<"response/headers/content-type">:"application/octet-stream;charset=utf-8"
+
+    //Indicar que se trata de un archivo adjunto y su nombre
+    //Más información en: https://developer.mozilla.org/es/docs/Web/HTTP/Headers/Content-Disposition
+    @http_context<"response/headers/content-disposition">: "attachment; filename="+ifstr(realname=="",file.name(url),realname)+""
+
+    //Indicar tipo de respuesta
+    @http_context<"response/output">:"binary"
+
+    //Asignar la respuesa de salida
+    @http_context<"response/binary*">: file.rbytes(url) //Lee y devuelve el array de bytes del archivo
+}

@@ -1,0 +1,758 @@
+#include "dkli.dkh"
+#!
+
+module "form.dk"
+{
+    #include "functions.dkh"
+    #include "serialize.dkh"
+    #include "webcl.dkh"
+    #include "dbr.dkh"
+    #include "uielements.dkl"
+    #include "config.dk"
+
+    do @context.begin(@crud_context)
+    @ws=@("http/request/get/ws")
+    // do rise_error(99,to.json(@crud_context))
+    @isNew = (@('$./sys_pk')=='')
+    @isEmisor = (@('./emisor')==@('http/session/user/uid'))
+    @status = parse.num(@("./status"))
+    @date_now_inicio=date_str(now(),'yyyy-MM-ddT00:00')
+    @date_now_cierre=date_str(now(),'yyyy-MM-ddT23:00')
+    formatDateTime::date
+    {
+        if date == "" {return ""}
+        fecha = date_str(str2dt(date),"yyyy-MM-ddThh:mm")
+        return fecha
+    }
+
+    new params
+    {
+        @"uid_rec": @('http/session/user/uid')
+    }
+
+    // obtener usuarios de workspaces
+    new headersWorkspaces
+    {
+        @"Content_type":"application/json"
+    }
+
+    new parametrosWorkspaces
+    {
+        @"ids": @('http/session/user/ids')
+        @"operation": "assignables"
+    }
+
+    content = to.json(parametrosWorkspaces)
+    respuesta = http.request("https://api.induxsoft.net/workspaces/","POST",headersWorkspaces, content)
+    ref respuestaWorkspaces = from.json(respuesta)
+
+    if @@(respuestaWorkspaces, "#success")
+    {
+       ref @usuariosWorkspaces = @@(respuestaWorkspaces,"&data")
+        
+    }
+    @email_receptor=""
+    recorrerUsuarios ::
+    {
+        ref listaUsuarios = list.create()
+        for i=0; i<@count(@usuariosWorkspaces)
+        {
+            ref usuarioWorkspace = @item(@usuariosWorkspaces, i)
+            if @@(usuarioWorkspace,'type') == 'user' && @@(usuarioWorkspace,'id') != @('http/session/user/uid')
+            {
+                if not(@isNew) && @@(usuarioWorkspace,'id') == @('./emisor'){
+                     @email_receptor=@@(usuarioWorkspace,"email")
+                }else if @@(usuarioWorkspace,'id') == @("./receptor")
+                {
+                    @email_receptor=@@(usuarioWorkspace,"email")
+                }
+               do list.add(listaUsuarios, usuarioWorkspace)
+            }
+        }
+        return listaUsuarios
+    }
+    @listaUsuarios=to.json(recorrerUsuarios())
+    ref listaDeArchivosSolicitud = @null
+    #! if not(@isNew)
+    {
+        if dir.exists(path.concat(@path_get_files, @('./sys_guid')+"/biblioteca/" ))
+        {
+            ref listaDeArchivosSolicitud = list.files(path.concat(@path_get_files, @('./sys_guid')+"/biblioteca/" ),"*")
+        }
+    }
+
+    listarArchivosSolicitud::&listaArchivos
+    {
+        if not(isnull(listaArchivos))
+        {
+            for t=0; t<list.count(listaArchivos)
+            {
+                archivoSolicitud = list.str(listaArchivos, t)
+                nombreArchivo = file.name(archivoSolicitud)
+                // biblioteca=@('./sys_guid')+"&biblioteca"+"&"+nombreArchivo
+                #$
+                button( type="button" style="min-width:10em;max-width:30em" class="btn btn-outline-primary m-1 class-archivo-solicitud" id="solicitud#<t + 1>" onclick="descargarArchivo('#<@('./sys_guid')>','biblioteca','#<nombreArchivo>')"){"#<nombreArchivo>"}
+                
+                #! if @('./emisor') == @('http/session/user/uid') {
+                    #$ i(class="fa fa-trash" style="color:red;cursor:pointer;" onclick="delete_file_biblioteca('#<@('./sys_guid')>','biblioteca','#<nombreArchivo>')"){$""}
+                }
+                br{}
+                #!   
+            }
+        }
+    }
+
+     new def_receptores
+    {
+        @"datatable*": recorrerUsuarios()
+        member "attributes"
+        {
+            @"name":"receptor"
+            @"class":"id_receptor border-0 p-1 editable flex-grow-1 form-select"
+            // @"data":to.json(@listaUsuarios)
+        }
+        @"text_field":"name"
+        @"value_field":"id"
+        @"first_value":" "
+		@"first_text":" "
+        @"id":"list_select"
+        @"selected":@('./receptor')
+    }
+
+    new def_tipo
+    {
+        @"datatable*":dbr.list(@("&database"), "select sys_pk, codigo, descripcion from gs_tipo_solicitud", @null)
+        member "attributes"
+        {
+            @"name":"tipo"
+            @"class":"w-100 form-control form-control-sm editable d-none"
+        }
+        @"text_field":"descripcion"
+        @"value_field":"sys_pk"
+        @"selected":@('./tipo')
+    }
+    
+    colordiv=9
+    if @('./emisor') == @('http/session/user/uid'){colordiv=@('#./color')}
+    else{colordiv=@('#./color_receptor')}
+
+     switch colordiv
+    {
+        case 0
+        {
+            color = "#FCFCFC"
+            break
+        }
+        case 1
+        {
+            color = "#dc3545"
+            break
+        }
+        case 2
+        {
+            color = "#007bff"
+            break
+        }
+        case 3
+        {
+            color = "#ffc107"
+            break
+        }
+        case 4
+        {
+            color = "#fd7e14"
+            break
+        }
+        case 5
+        {
+            color = "#28a745"
+            break
+        }
+        case 6
+        {
+            color = "#6f42c1"
+            break
+        }
+        default
+        {
+            color = "#FCFCFC"
+            break
+        }
+    }
+
+    #$
+    div(class="padre" )
+    {
+        script{$'var prevUrl = window.sessionStorage.getItem("url_solicitudes") ?? "../" '}
+        div(class="p-2 m-0 d-flex align-items-center")
+        {
+            h5(class="me-1 p-0"){$" Solicitud"}
+            div(class="w-100 rounded" id="colorSolicitud" role="alert" style="height:8px; background-color: #<color>"){$""}
+            input(type="hidden" class="color_emisor" value="#<@('./color_emisor')>"){$""}
+            
+            div(class="controls d-flex justify-content-end")
+            {
+                svg(xmlns="http://www.w3.org/2000/svg" width="22" height="22" id="exit_btn" onclick="#<ifstr(@isNew==@true,'close_modal()','window.location.href=prevUrl;')>" fill="#aaa" class="bi bi-x-square-fill" viewBox="0 0 16 16")
+                {
+                    path(d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm3.354 4.646L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 1 1 .708-.708z")
+                }
+            }
+        }
+        
+    div(class="row")
+    {
+        div(class="#<ifstr(not(@isNew),'col col-lg-7','')>")
+        {
+            #! if @('error/message') != "" { #$ div(class="alert alert-danger"){$"#<@('error/message')>"}} #$
+            
+            form(action="#<ifstr(@isNew, './_new', '../'+str(@('./sys_pk')))>" method="POST" id="form" class="p-0 card")
+            {
+                div(class="tab-header")
+                {
+                    ul(class="nav nav-tabs bg-light d-flex" "data-bs-tabs"='tabs')
+                    {
+                        li(class="nav-item")
+                        {
+                            a(class="nav-link active tab-nav-item-link" "aria-current"='true' href="#header-principal" "data-bs-toggle"='tab'){$"Principal"}
+                        }
+                        #! if not(@isNew)
+                        {
+                            #$ li(class="nav-item")
+                            { 
+                                a(class="nav-link tab-nav-item-link" id="progress-nav-link" href="#header-secondary" "data-bs-toggle"='tab'){$"Progreso"}
+                            }
+                        }#$
+                        li(class="nav-item")
+                        { 
+                            a(class="nav-link tab-nav-item-link"  href="#header-more-options" "data-bs-toggle"='tab'){$"Opciones"}
+                        }
+                        div(class="flex-grow-1 d-flex align-items-center justify-content-end")
+                        {
+                            #! if @isNew
+                            {
+                                #$ button(type="submit" class="btn btn-primary btn-sm ps-5 pe-5 m-1" id="btn_Enviar" title="Enviar")
+                                {
+                                    "Enviar"
+                                    svg(xmlns="http://www.w3.org/2000/svg" id="send_icon" width="16" height="16" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16")
+                                    {
+                                        path(d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z")
+                                    }
+                                }
+                                button(type="button" id="save_btn" class="btn btn-secondary btn-sm m-1" title="Guardar como borrador")
+                                {
+                                    "Guardar como borrador"
+                                    svg(xmlns="http://www.w3.org/2000/svg" id="eraser_icon" width="16" height="16" fill="currentColor" class="bi bi-eraser-fill" viewBox="0 0 16 16"){path(d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828l6.879-6.879zm.66 11.34L3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293l.16-.16z")}
+                                }
+                                #!
+                            }
+                            else if not(@isNew) && @isEmisor
+                            {
+                                if @status == 91 
+                                {
+                                    #$ button(type="button" class="btn btn-primary btn-sm ps-2 pe-2 m-1" id="btn_reenviar" title="Reenviar" value="#<ifstr(@('#./req_aceptacion')==1,'aceptacion','continuar')>" onclick="cambio_status(this);")
+                                    {
+                                        "Reenviar"
+                                        svg(xmlns="http://www.w3.org/2000/svg" id="send_icon" width="16" height="16" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16")
+                                        {
+                                            path(d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z")
+                                        }
+                                    }
+                                }
+                                button(type="button" onclick="readOnly(false)" id="modify_btn" class="btn btn-secondary btn-sm m-1 disableOnFinish"){"Modificar"}
+                                button(type="submit" id="acept_btn" class="btn btn-primary btn-sm m-1 hidde_control"){"Aceptar"}
+                                button(type="button" onclick="readOnly(true)" id="cancel_btn" class="btn btn-secondary btn-sm m-1 hidde_control"){"Cancelar"}
+                                #!  
+                            }
+                            else if not(@isNew) && parse.bool(@("./receptor_progreso"))
+                            {
+                                if @status == 11
+                                {
+                                    #$ button(type="button" onclick="disableEspecificElements(false,'progress_range');" id="modify_btn" class="btn btn-secondary btn-sm m-1 disableOnFinish hidde_control"){"Modificar progreso"}
+                                    button(type="submit" id="acept_btn" class="btn btn-primary btn-sm m-1 hidde_control"){"Aceptar"}
+                                    button(type="button" onclick="disableEspecificElements(true,'progress_range');" id="cancel_btn" class="btn btn-secondary btn-sm m-1 hidde_control"){"Cancelar"}
+                                }
+                            }
+                        }
+                        #$
+                    }
+                    div(class="colores flex-grow-1 d-flex align-items-center justify-content-end")
+                    {
+                        #!
+                        labelStatus = ""
+                        switch @status
+                        {
+                            case 1
+                            {
+                                labelStatus = "La solicitud se encuentra sin asignar e iniciar."
+                                break
+                            }
+                            case 10
+                            {
+                                labelStatus = "La solicitud se encuentra en espera de aceptación."
+                                if not(@isNew) && parse.num(@("./req_aceptacion"))>0 && not(@isEmisor)
+                                {
+                                    #$
+                                    label(id="lbl_play" class="m-1"  style="cursor:pointer" value="play"  onclick="cambio_status(this);" title="Aceptar solicitud"){i(class="fa fa-play" id="btn_play"){" "}" Aceptar"}
+                                    label(id="lbl_rechazar"  class="m-1" style="cursor:pointer"   value="rechazar" title="Rechazar solicitud" onclick="cambio_status(this);"){i(class="fa fa-trash" id="btn_rechazar"){" "}" Rechazar"}
+                                    #!
+                                }
+                                break
+                            }
+                            case 11
+                            {
+                                labelStatus = "La solicitud se encuentra iniciada y en proceso."
+                                if not(@isNew) && not(@isEmisor)
+                                {
+                                    if parse.bool(@("#./receptor_pausar"))
+                                    {
+                                        #$ label(id="lbl_pause"  class="m-1"  style="cursor:pointer"  value="pause" title="Pausar operación" onclick="cambio_status(this);"){i(class="fa fa-pause" id="btn_pause"){" "}" Pausar"}
+                                    }
+                                    #$ label(id="lbl_terminada" class="m-1"  style="cursor:pointer" value="#<ifstr(@('#./req_aprobacion')==1,'terminar','aprobar')>" title="Terminar operación" onclick="cambio_status(this);"){i(class="fa fa-check-double" id="btn_terminada"){" "}" Terminar"}
+                                    #!
+                                }
+                                break
+                            }
+                            case 20
+                            {
+                                labelStatus = "La solicitud se encuentra en pausa."
+                                if not(@isNew) && not(@isEmisor)
+                                {
+                                    #$ label(id="lbl_continuay"  class="m-1"  style="cursor:pointer"  value="continuar" title="Continuar operación" onclick="cambio_status(this);"){i(class="fa fa-play" id="btn_pause"){" "}" Continuar"}
+                                    #!
+                                }
+                                break
+                            }
+                            case 30
+                            {
+                                labelStatus = "La solicitud se encuentra terminada y en espera de aprobación."
+                                if @isEmisor && parse.bool(@("#./req_aprobacion"))
+                                {
+                                    #$ div(class="flex-grow-1 mt-1")
+                                    {
+                                        button(type="button" id="aprobar_op_btn" value="aprobar" class="btn btn-primary btn-sm m-1" onclick="cambio_status(this);" title="Aprobar y terminar"){"Aprobar y terminar"}
+                                        button(type="button" id="no_aprobar_op_btn" value="continuar" class="btn btn-secondary btn-sm m-1" onclick="cambio_status(this);" title="No aprobar"){"No aprobar"}
+                                    }
+                                    #!
+                                }
+                                break
+                            }
+                            case 50
+                            {
+                                labelStatus = "La solicitud se encuentra aprobada y cerrada."
+                                break
+                            }
+                            case 90
+                            {
+                                labelStatus = "La solicitud se encuentra cancelada."
+                                break
+                            }
+                            case 91
+                            {
+                                labelStatus = "La solicitud se encuentra rechazada."
+                                break
+                            }
+                            default
+                            {
+                                break
+                            }
+                        }
+                        #$ div(class="btn-group d-flex flex-wrap mt-1" id="group-colors")
+                        {
+                            #!
+                            @emisor=@false
+                            @receptor=@false
+                            color_seleccionado = 99
+                            if @isEmisor { color_seleccionado = field.dnum(@('&./'),'color', 99) 
+                                @emisor=@true}
+                            else{ color_seleccionado = field.dnum(@('&./'),'color_receptor', 99) 
+                                @receptor=@true}
+                            #$
+                            button(type="button" onclick="selectColor(0,'#FCFCFC',this);" style="background-color:#FFFFFF;" title="Sin color" class="color #<ifstr(color_seleccionado==0,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(1,'#dc3545',this);" style="background-color:#dc3545;" title="Rojo" class="color #<ifstr(color_seleccionado==1,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(2,'#007bff',this);" style="background-color:#007bff;" title="Azul" class="color #<ifstr(color_seleccionado==2,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(3,'#ffc107',this);" style="background-color:#ffc107;" title="Amarillo" class="color #<ifstr(color_seleccionado==3,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(4,'#fd7e14',this);" style="background-color:#fd7e14;" title="Anaranjado" class="color #<ifstr(color_seleccionado==4,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(5,'#28a745',this);" style="background-color:#28a745;" title="Verde" class="color #<ifstr(color_seleccionado==5,'border border-dark','border-0')>"){$""}
+                            button(type="button" onclick="selectColor(6,'#6f42c1',this,'');" style="background-color:#6f42c1;" title="Morado" class="color #<ifstr(color_seleccionado==6,'border border-dark','border-0')>"){$""}
+                        }
+                    }
+                }
+                #!
+                if not(@isNew)
+                {
+                    #$ div(class="flex-grow-1 d-flex align-items-center mt-1 ps-3")
+                    {
+                        svg(xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="gray" class="bi bi-info-circle-fill" viewBox="0 0 16 16")
+                        {
+                            path(d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z")
+                        }
+                        p(class="text-secondary m-0 ms-1"){$"#<labelStatus>"}
+                    }
+                }
+                #$ div(class="tab-content")
+                {
+                    div(id="header-principal" class="tab-pane active")
+                    {
+                        div(class="card-header bg-transparent d-flex flex-wrap align-items-center")
+                        {
+                            div(class="m-1 w-40" style="width: 30% !important;")
+                            {
+                                label(class="text-secondary"){"Referencia:"}
+                                #!
+                                referencia = field.dstr(@('&./'),'referencia','<A>')
+                                //if contains(referencia,'S-') {referencia = left(referencia,2)}
+                                #$
+                                //input(type="text" id="referencia" value="#<referencia>" required="" class="w-100 form-control form-control-sm editable")
+                                input(type="text" id="referencia" name="referencia" value="#<referencia>" required="" class="w-100 form-control form-control-sm editable")
+                                small(class="text-primary hidde_control" style="cursor:pointer;" id="ref_auto_btn"){$"Automático"}
+                            }
+                            div(class="m-1 w-50")
+                            {
+                                label(class="text-secondary" style="display:none;"){"Tipo:"}
+                                #!
+                                do uie.dbSelect(def_tipo)
+                                #$
+                            }
+                            #! time_now = date_str(now(),"yyyy-MM-dd HH:mm:ss")
+                            #$
+                            div(class="m-1 w-40")
+                            {
+                                label(class="text-secondary"){"Inicio previsto:"}
+                                input(type="datetime-local" id="inicio_previsto" name="inicio_previsto" value="#<ifstr(@('$./inicio_previsto')!='',formatDateTime(@('$./inicio_previsto')),@date_now_inicio)>" required="" class="w-100 form-control form-control-sm editable")
+                            }
+                            div(class="m-1 w-40")
+                            {
+                                label(class="text-secondary"){"Cierre previsto:"}
+                                input(type="datetime-local" name="cierre_previsto" value="#<ifstr(@('$./cierre_previsto')!='',formatDateTime(@('$./cierre_previsto')),@date_now_cierre)>" class="w-100 form-control form-control-sm editable")
+                            }
+                            #!
+                            if not(@isNew) && @('./emisor') == @('http/session/user/uid') && @status != 50 && @status != 90 && @status != 91
+                            {
+                                #$ button(type="button" id="Cancelar_op_btn" value="cancelar" onclick="if(confirm('¿Está seguro de cancelar la solicitud?'))cambio_status(this,#<@('./sys_pk')>);" class="btn btn-light border-secondary btn-sm m-1 align-self-end" title="Cancelar solicitud")
+                                {
+                                    $"Cancelar solicitud "
+                                    svg(xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" class="bi bi-x" viewBox="0 0 16 16")
+                                    {
+                                        path(d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z")
+                                    }
+                                }
+                            }
+                            input(type="hidden" name="creacion" value="#<time_now>")
+                            ##
+                            if @isNew
+                            {   ##
+                                input(type="hidden" name="emisor" value="#<@('http/session/user/uid')>")
+                                input(type="hidden" name="emisor_nombre"  value="#<@('http/session/user/name')>")
+                                ##
+                            }else{
+                                ##
+                                input(type="hidden" name="emisor" value="#<@('./emisor')>")
+                                input(type="hidden" name="emisor_nombre"  value="#<@('./emisor_nombre')>")
+                                ##
+                            }
+                            ##
+                            
+                        }
+                    }
+
+                    div(id="header-secondary" class="tab-pane")
+                    {
+                        div(class="card-header bg-transparent d-flex flex-wrap align-items-center")
+                        {
+                            div(class="m-1 w-40")
+                            {
+                                label(class="text-secondary"){"Inicio real:"}
+                                input(type="datetime-local" id="inicio_real" name="inicio_real" value="#<formatDateTime(@('$./inicio_real'))>" class="w-100 form-control form-control-sm" readonly="")
+                            }
+                            div(class="m-1 w-40")
+                            {
+                                label(class="text-secondary"){"Cierre real:"}
+                                input(type="datetime-local" name="cierre_real" value="#<formatDateTime(@('$./cierre_real'))>" class="w-100 form-control form-control-sm" readonly="")
+                            }
+                            input(type="hidden" id="color" name="color" value="#<field.dnum(@('&./'),'color',0)>")
+                            div(class="m-1 w-100")
+                            {
+                                label(class="text-secondary")
+                                {
+                                    $"Progreso: "
+                                    span(id="progress_value" value="#<field.dnum(@('&./'),'progreso',0.00)>"){$"#<field.dnum(@('&./'),'progreso',0.00)>"}
+                                }
+                                input(type="range" id="progress_range" min="0" max="100" step="10.00" name="progreso" value="#<field.dnum(@('&./'),'progreso',0.00)>" class="w-100 form-range" disabled="disabled")
+                            } 
+                        }
+                    }
+
+                    #$
+                    div(id="header-more-options" class="tab-pane")
+                    {
+                        div(class="card-header bg-transparent d-flex flex-wrap align-items-center")
+                        {
+                            div(class="m-1 w-100")
+                            {
+                                input(type="hidden" name="req_aceptacion" id="req_aceptacion_h" "value"="#<ifstr(field.dnum(@('&./'),'req_aceptacion', 0)==1,'1','0')>")
+                                input(type="checkbox" id="req_aceptacion" "#<ifstr(field.dnum(@('&./'),'req_aceptacion', 0)==1,'checked','')>"="true" class="editable")
+                                span{$" "}label{"Requiere aceptación del receptor al inicio."}
+                            }
+                            div(class="m-1 w-100")
+                            {
+                                input(type="hidden" name="req_aprobacion" id="req_aprobacion_h" "value"="#<ifstr(field.dnum(@('&./'),'req_aprobacion', 0)==1,'1','0')>")
+                                input(type="checkbox" id="req_aprobacion" "#<ifstr(field.dnum(@('&./'),'req_aprobacion', 0)==1,'checked','')>"="true" class="editable")
+                                span{$" "}label{" Requiere aprobación del emisor al cierre."}
+                            }
+                            div(class="m-1 w-100")
+                            {
+                                input(type="hidden" name="receptor_pausar" id="receptor_pausar_h" "value"="#<ifstr(field.dnum(@('&./'),'receptor_pausar', 0)==1,'1','0')>")
+                                input(type="checkbox" id="receptor_pausar" "#<ifstr(field.dnum(@('&./'),'receptor_pausar', 0)==1,'checked','')>"="true" class="editable")
+                                span{$" "}label{" El receptor puede pausar la solicitud."}
+                            }
+                            div(class="m-1 w-100")
+                            {
+                                input(type="hidden" name="receptor_progreso" id="receptor_progreso_h" "value"="#<ifstr(field.dnum(@('&./'),'receptor_progreso', 0)==1,'1','0')>")
+                                input(type="checkbox" id="receptor_progreso" "#<ifstr(field.dnum(@('&./'),'receptor_progreso', 0)==1,'checked','')>"="true" class="editable")
+                                span{$" "}label{" El receptor puede indicar el progreso de la solicitud."}
+                            }
+                        }
+                    }
+                }
+
+                div(class="card p-3 border-0")
+                {   
+                    ##
+                    if @isNew
+                    {
+                        ##
+                        div(class="d-flex align-items-center")
+                        {
+                            label(class="text-secondary text-right"){"De:"}
+                            span(class="p-1"){" #<@('http/session/user/name')>"}
+                        }
+                        
+                        hr(class="m-1"){$""}
+                        div(class="card border-0 mt-2")
+                        {
+                            div(class="d-flex align-items-center")
+                            {
+                                label(class="text-secondary"){"Para:"}
+                                #!
+                                do uie.dbSelect(def_receptores)
+                                #$
+                            }
+                            
+                            input(type="hidden" id="receptor_nombre" name="receptor_nombre" value="#<@('./receptor_nombre')>")
+                            hr(class="m-1"){$""}
+                        }
+                        ##
+                    }
+                    else if @('./emisor') == @('http/session/user/uid') 
+                    {
+                        ##
+                        div(class="card border-0 mt-2")
+                        {
+                            div(class="d-flex align-items-center")
+                            {
+                                label(class="text-secondary"){"Para:"}
+                                #!
+                                do uie.dbSelect(def_receptores)
+                                #$
+                            }
+                            
+                            input(type="hidden" id="receptor_nombre" name="receptor_nombre" value="#<@('./receptor_nombre')>")
+                            hr(class="m-1"){$""}
+                        }
+                        ##   
+                    }
+                    else if @('./emisor') != @('http/session/user/uid') 
+                    {
+                        ##
+                        div(class="d-flex align-items-center")
+                        {
+                            label(class="text-secondary text-right"){"De:"}
+                            span(class="p-1"){"#<@('./emisor_nombre')>"}
+                        }
+                        ##   
+                    }
+                    ##
+                    div(class="card border-0")
+                    {
+                        input(type="text" name="asunto" maxlength="255" value="#<@('./asunto')>" required="" placeholder="Asunto:" class="border-0 p-2 ps-0 editable form-control form-control-sm")
+                        hr(class="m-1"){$""}
+                    }
+                    hr(class="m-1" style="color:white"){$""}
+                    div(class="card border-0 mb-3")
+                    {
+                        textarea(name="cuerpo" class="form-control form-control-sm p-2 editable" rows="4"){$"#<@('./cuerpo')>"}
+                    }
+
+                    #! if @isNew
+                        {
+                            ##
+                            div(class="card border-0 mb-3")
+                            {
+                                div(style="position:relative;")
+                                {
+                                    a(class="btn btn-light border-secondary" href="javascript:;")
+                                    {
+                                        svg(xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-paperclip" viewBox="0 0 16 16")
+                                        {
+                                            path(d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z")
+                                        }
+                                        $" Adjuntar"
+                                        input(type="file" multiple="true" id="archivosBiblioteca" style='position:absolute;z-index:2;top:0;left:0;filter: alpha(opacity=0);-ms-filter:"progid:DXImageTransform.Microsoft.Alpha(Opacity=0)";opacity:0;background-color:transparent;color:transparent;' size="40"){$""}
+                                    }
+                                }
+                            }
+                            div(class="card border-0 mb-3")
+                            {
+                                ol(class="list-group list-group-numbered" id="infoArchivosTemporalesBiblioteca")
+                                {$""}
+                            }
+                            input(type="hidden" id="cadenaArchivosBiblioteca" name="cadenaArchivosBiblioteca" value=" "){$""}
+                            ##
+                        }else{
+                            ##
+                            div(class="card border-0 mt-3")
+                            {
+                                div(class="row")
+                                {
+                                    div(class="col-lg-12")
+                                    {
+                                        h6(class="m-1"){$"biblioteca de archivos" 
+                                        #!
+                                        if @('./emisor') == @('http/session/user/uid'){
+                                            #$
+                                            input(type="file" multiple="true" id="add_file" style='display:none' class="disableOnFinish"){$""}
+                                            label("for"="add_file" class="btn btn-sm btn-light border-secondary m-1 disableOnFinish" style="cursor:pointer;")
+                                            {
+                                                svg(xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-paperclip" viewBox="0 0 16 16")
+                                                {
+                                                    path(d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0V3z")
+                                                }
+                                                $" Adjuntar"
+                                            }//i(class="fa fa-paperclip" style="cursor:pointer;" title="agregar archivos a la biblioteca"){""}
+                                            
+                                        }}
+                                    }
+                                    div(class="" style="overflow-y:auto;min-height:8em;max-height: 12em;")
+                                    {
+                                        $""
+                                        ##
+                                        do listarArchivosSolicitud(listaDeArchivosSolicitud)
+                                        ##
+                                        
+                                    }
+                                }
+                            }
+                            ##
+                        }   
+                    #$
+                }
+                input(type="hidden" value="#<ifstr(not(@isNew),@email_receptor,'')>" class="email" id="email" name="email" ){$""}
+                input(type="hidden" name="sys_pk" id="sys_pk" value="#<@('./sys_pk')>")
+                input(type="hidden" name="sys_recver" value="#<@('./sys_recver')>")
+                input(type="hidden" id="uidChat" value="#<@('http/session/user/uid')>")
+                input(type="hidden" id="autorNombre" value="#<@('http/session/user/name')>") 
+            }     
+        }
+
+        div(class="col-lg-5 col-md-12 col-sm-12 col-xs-12" id="col5" style="")
+        {
+            #! if not(@isNew)
+            {  
+                ##
+                //entregables receptor
+                div(class="m-0 card justify-content-center" )
+                {
+                    div(class="card-header")
+                    {
+                        h6(class="mb-0"){$"Entregables" 
+                        #!
+                        if @('./receptor') == @('http/session/user/uid'){
+                        #$
+                            input(type="file" multiple="true" id="fileEntregables" class="disableOnFinish" style="display:none"){""}
+                            // button("for"="fileEntregables" style="cursor:pointer;float:right" class="btn btn-secondary m-1" onclick="sendFile();" title="Enviar archivo(s)"){"Adjuntar"}//i(class="fa fa-send-o" style="float:right;cursor:pointer"){""}
+                            label("for"="fileEntregables" style="cursor:pointer;float:right" class="btn btn-secondary m-1 disableOnFinish" title="Agregar archivo(s)"){"Adjuntar"}//i(class="fa fa-paperclip" style="float:right;cursor:pointer"){""}
+                        }}
+                        $""
+                    }
+                    div(class="card-body" style="overflow-y: auto;max-height: 10rem;")
+                    {
+                        div(class="result" id="result"){$""}
+                    }
+                    div(class="border-0" style="overflow-y: auto;max-height: 8rem;")
+                    {
+                        ol(class="list-group list-group-numbered" id="infoArchivosEntregables")
+                        {$""}$""
+                    }
+                    input(type="hidden" id="cadenaArchivosEntregables" name="cadenaArchivosEntregables" value=""){$""}
+                    $""
+                }br{}
+                div(class="m-0 card justify-content-center")
+                {
+                    div(class="card-header")
+                    {
+                        h6(class="mb-0"){$"Bitácora"}
+                    }
+                        
+                    div(id="chat" class="mt-2 p-2" style="overflow-y: auto;max-height: 24rem;"){$""}
+                    
+                    div(class="mt-3 mx-1 d-flex justify-content-center p-2")
+                    {
+                        input(class="form-control form-control-sm disableOnFinish" placeholder="Ingrese texto" type="text" id="textoBitacora")
+                        button(class="btn btn-primary ms-2 disableOnFinish" id="btnAgregar" onclick="agregarBitacora()" type="button")
+                        {
+                            svg(xmlns="http://www.w3.org/2000/svg" id="send_icon_bit" width="16" height="16" fill="currentColor" class="bi bi-send-fill" viewBox="0 0 16 16")
+                            {
+                                path(d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083l6-15Zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471-.47 1.178Z")
+                            }
+                        }
+                        button(class="btn btn-secondary ms-2 disableOnFinish" style="background:white")
+                        {
+                            $""
+                            label("for"="archivosBitacora" style="cursor:pointer;" ){i(class="fa fa-paperclip" style="cursor:pointer;color:black" title="agregar archivos a la Bitácora"){""}""}
+                            input(type="file" multiple="true" id="archivosBitacora" style='display:none' onchange="$('#upload-file-info').html($(this).val());"){$""}
+                        }
+                    }
+                    div(class="card border-0 my-3 p-2")
+                    {
+                        // span(class="spinner" id="spinner"){""}
+                        ol(class="list-group list-group-numbered text-success" id="infoArchivosTemporalesBitacora")
+                        {
+                            $""
+                        }
+                    }
+                    input(type="hidden" id="cadenaArchivosBitacora" value=""){$""}
+                    input(type="hidden" id="sys_guid" value="#<@('./sys_guid')>"){$""}    
+                    $""
+                }
+                br{}
+                ##
+            }
+            ##
+            $""
+        }
+        
+
+        #!
+        #include "style_gs_solicitud.dkl"
+        #include "gs_solicitud.dkl"
+
+        rOnly = @true
+        finished = @false
+        if @isNew {rOnly = @false}
+        if @status == 30 && not(@isEmisor) {finished = @true}
+        if @status == 50 || @status == 90
+        { //desactivamos todo
+            rOnly = @true
+            finished = @true
+        }
+        #$
+        script{"
+            readOnly(#<rOnly>);
+            disableOnFinish(#<finished>);
+        "}
+        script(src="/definitive.api.js"){""}
+    }
+}
+    #!
+    do @context.end()
+}

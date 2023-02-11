@@ -1,0 +1,65 @@
+﻿#include "dkli.dkh"
+#!
+
+module "Controller configs"
+{
+
+	@crud_path = "web/irq.ws.induxsoft.net"
+	@icon_home="/apps/usersman/icons/home.icon.png"
+	@work_space_omit="a9db71b81e8b40389e67f19b0501fe88"
+	@auto_crud=@true
+
+	@list_view="list.dk"
+	@form_view="form.dk"
+	@error_view="error.dk"
+
+	@entity_id_blank="_new"
+
+	@dkl_view_ext=".dk"
+	@websencia_ext=".jsnwm"
+	@ws=""
+	@url_home="https://ws.induxsoft.net/"
+	if isset("@http_context"){
+		#include "cookies.dkl"
+
+		@ws=@@(@http_context,"request/get/ws")
+		@name=@@(@http_context,"request/get/namews")
+		@namews=list.str(split(cookie.get("namews"),";"),0)
+		if @name!=""
+		{
+			do cookie.set("namews", @name)
+			@namews=list.str(split(cookie.get("namews"),";"),0)
+		}
+		
+		@crudl.qname="Connections@induxsoft/ws"+@ws+"@workspaces"
+		if contains(@work_space_omit,@ws){
+			@crudl.qname="Connections@induxsoft/induxsoftws@workspaces"	
+		}
+		new addres
+		{
+			@"link":@namews//"workspace"
+			@"target":"https://ws.induxsoft.net/"+@ws+"?token="+@@(@http_context,"$session/user/ids")
+			@"type":"workspace"
+		}
+		new dx
+		{
+			@"link":"gs_solicitudes"
+			@"target":""
+			@"type":"gs_solicitudes"
+		}
+		ref lista_address=list.create()
+		do list.add(lista_address,addres)
+		do list.add(lista_address,dx)
+		@http_context<"session/address_workspaces*">:lista_address
+	}
+
+    @crudl.user=""
+    @crudl.pwd=""
+
+    @crudl.enable_idreplacement=@true
+
+	@crudl.access_privilege='
+	{
+		"access":[{"workspace":"'+@ws+'"}]
+	}'
+}

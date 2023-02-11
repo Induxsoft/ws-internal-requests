@@ -1,0 +1,142 @@
+#include "dkli.dkh"
+#!
+module "solicitudes"{
+
+    #include "config.dk"
+    #include "config.smtp.dkl"
+    
+    @table_name = "gs_solicitud"
+    @status_borrador = 0
+    @status_Asignada = 10
+    @status_Iniciada = 11
+    @status_En_pausa = 20
+    @status_Terminada = 30
+    @status_Aprobada = 50
+    @status_cancelada = 90
+    @status_Rechazada = 91
+    @status_Archivado = 99
+
+    user_id = @@(@http_context,'session/user/uid')
+    
+    @list_query="select sol.referencia,sol.status,sol.sys_pk, sol.sys_guid, sol.sys_recver, sol.sys_timestamp, sol.sys_dtcreated, sol.sys_deleted,
+    sol.emisor, sol.emisor_nombre, sol.receptor, sol.receptor_nombre, sol.asunto,sol.color,sol.color_receptor ,sol.cuerpo, ifnull(DATE_FORMAT(sol.creacion, '%Y-%m-%d'),'') as creacion, concat(ifnull(DATE_FORMAT(sol.inicio_previsto,'%Y-%m-%d'),''),'<br/>',ifnull(DATE_FORMAT(sol.inicio_real,'%Y-%m-%d'),''),' (',timestampdiff(day,date(sol.inicio_real),date(sol.inicio_previsto)),')') as inicio, concat(ifnull(DATE_FORMAT(sol.cierre_previsto,'%Y-%m-%d'),''),ifnull(concat('<br/>',DATE_FORMAT(sol.cierre_real,'%Y-%m-%d')),''),ifnull(concat(' (',timestampdiff(day,date(sol.cierre_previsto),date(sol.cierre_real)),')'),'')) as cierre,concat('(',timestampdiff(day,DATE(IFNULL(sol.cierre_previsto,NOW())),DATE(NOW())),')') as ret_cierre, stat.const as estado, if(sol.status!="+str(@status_Iniciada)+" or sol.progreso is null or sol.progreso <= 0, null, concat(truncate(sol.progreso,0),'')) as progreso
+    from gs_solicitud sol
+    inner join gs_status_solicitud stat on sol.status = stat.id
+    where
+        if(@filter='recibidas',
+            if(sol.receptor ='"+user_id+"' && sol.status<>"+str(@status_Archivado)+" && sol.status<>"+str(@status_Aprobada)+",
+                if(sol.status="+str(@status_Aprobada)+" || sol.status="+str(@status_cancelada)+" ,
+                    if(timestampdiff(day,ifnull(date(sol.cierre_real),DATE(NOW())),date(NOW()))>15,0,1),1),0), 
+        if(@filter='enviadas',
+            if(sol.emisor = '"+user_id+"' and sol.receptor!='' && sol.status<>"+str(@status_Archivado)+" && sol.status<>"+str(@status_Aprobada)+",
+                if(sol.status="+str(@status_Aprobada)+" || sol.status="+str(@status_cancelada)+", 
+                    if(timestampdiff(day,ifnull(date(sol.cierre_real),DATE(NOW())),date(NOW()))>15,0,1),1),0),
+        if(@filter='borradores',
+            if(sol.emisor = '"+user_id+"' AND trim(sol.receptor)='' AND sol.status="+str(@status_borrador)+",1,0),
+        if(@filter='aprobadas',
+            if((sol.emisor = '"+user_id+"' || sol.receptor = '"+user_id+"') AND (sol.status="+str(@status_Aprobada)+" || sol.status="+str(@status_cancelada)+"),
+                if(sol.status="+str(@status_Aprobada)+" || sol.status="+str(@status_cancelada)+", 
+                    if(timestampdiff(day,ifnull(date(sol.cierre_real),DATE(NOW())),date(NOW()))>60,0,1),1),0),
+        if(@filter='archivadas',
+            if(@search='referencia',
+                if((sol.emisor = '"+user_id+"' or sol.receptor = '"+user_id+"') and sol.status<>"+str(@status_Iniciada)+" and sol.status<>"+str(@status_Aprobada)+" and sol.referencia like concat('%',@text_search,'%'),1,0),
+            if(@search='otros',
+                if((sol.emisor = '"+user_id+"' or sol.receptor = '"+user_id+"') and sol.status<>"+str(@status_Iniciada)+" and sol.status<>"+str(@status_Aprobada)+"  and date(if(@date_of='Creada',sol.creacion,sol.cierre_real)) >= date(@init) and date(if(@date_of='Creada',sol.creacion,sol.cierre_real)) <= date(@end) and (sol.emisor_nombre like concat('%',@text_search,'%') or sol.receptor_nombre like concat('%',@text_search,'%') or sol.referencia like concat('%',@text_search,'%') or sol.asunto like concat('%',@text_search,'%') or sol.cuerpo like concat('%',@text_search,'%')),1,0),0)),
+        if(sol.receptor = '"+user_id+"' && sol.status<>"+str(@status_Archivado)+" && sol.status<>"+str(@status_Aprobada)+",1,0))))))=1
+    order by sys_dtcreated DESC;"
+
+    @read_query = "select sys_pk, sys_guid, sys_recver, sys_timestamp, sys_dtcreated, sys_deleted, 
+    referencia, creacion, inicio_previsto, inicio_real, cierre_previsto, cierre_real, emisor, receptor, emisor_nombre, receptor_nombre, asunto, cuerpo, tipo, color,color_receptor, status, progreso, req_aceptacion, req_aprobacion, receptor_pausar, receptor_progreso
+    from gs_solicitud where #<@keyfield>=@_entity_id limit 1;"
+
+    solicitudes.read::&db,&params
+    {
+        ref solicitudes=entity.read(db,params)
+        return solicitudes
+    }
+    
+    solicitudes.create::&db,&params,&data
+    {
+        @mail<"to">:@@(data,"email")
+        cadena_archivos_biblioteca = @@(data,"cadenaArchivosBiblioteca")
+        ref array_archivos_biblioteca = split(cadena_archivos_biblioteca,",")
+        do field.remove(data,"cadenaArchivosBiblioteca")
+        do field.remove(data,"email")
+    	@use_transaction=@false
+    	do dbr.begin(db)
+
+        if field.dstr(data,"cierre_previsto","") == "" {do field.remove(data,"cierre_previsto")}
+        if field.dstr(data,"cierre_real","") == "" {do field.remove(data,"cierre_real")}
+        // do rise_error(888, to.json(@http_context))
+        if trim(field.dstr(data,"receptor","")) != ""
+        {
+            if field.dstr(data,"req_aceptacion","0") == "1" { data<"status"> : @status_Asignada }
+            else { data<"status"> : @status_Iniciada }
+        }
+        else { data<"status"> : @status_borrador }
+
+        if trim(field.dstr(data,"referencia","")) == "<A>" { data<"referencia">:solicitudes.getReference(db)}
+
+	    ref res= entity.create(db,params,data)
+    	do dbr.commit(db)
+        
+        //crea una carpeta
+        nueva_solicitud = path.concat(path.concat(@gs_base_path, "solicitudes"),@@(res,"sys_guid"))
+        do dir.ensure(path.concat(nueva_solicitud, "biblioteca"))
+        do dir.ensure(path.concat(nueva_solicitud, "bitacora"))
+        do dir.ensure(path.concat(nueva_solicitud, "resultados"))
+
+        // mueve los archivos temporales a la carpeta de la solicitud correspondiente
+        for i=1; i<@count(array_archivos_biblioteca)
+        {
+            archivo_biblioteca = list.str(array_archivos_biblioteca, i)
+            origen = path.concat(@gs_temp_path, archivo_biblioteca)
+            destino = path.concat(path.concat(@gs_solicitudes_path,@@(res,"sys_guid")+"/biblioteca"),archivo_biblioteca)
+            do file.copy(origen, destino)
+            do file.delete(origen)
+        }
+        if trim(@@(data,"receptor"))!=""{
+            do solicitudes.email(res,@false)
+        }
+    	return res
+    	exception
+    	{
+    		if dbr.in_transaction(db) { do dbr.rollback(db) }
+    		do rise_error(500,last_error())
+    	}
+    }
+    solicitudes.getReference::&db
+    {
+        return dbr.str(db,"SELECT (IF(COUNT(*)>=1, CONCAT('S-', LPAD(CAST(MAX(SUBSTR(referencia,3,5))+1 AS CHAR), '5','0')), 'S-00001')) AS referencia FROM gs_solicitud WHERE referencia LIKE 'S-%';",@null)
+    }
+    solicitudes.update::&db,&params,&data
+    {
+        if field.dstr(data,"cierre_previsto","") == "" {do field.remove(data,"cierre_previsto")}
+        if field.dstr(data,"cierre_real","") == "" {do field.remove(data,"cierre_real")}
+            do field.remove(data,"email")
+        return entity.update(db,params,data)
+    }
+    solicitudes.delete::&db,&params
+    {
+        if field.exist(params,"act_delete_file"){
+            do solicitudes.delete.file(db,params)
+        }
+    }
+    solicitudes.delete.file::&db,&params
+    {
+        if parse.bool(@@(params,"act_delete_file")){
+            path=path.concat(@gs_solicitudes_path,@@(params,"guid"))
+            path=path.concat(path,@@(params,"tipo"))
+            path=path.concat(path,@@(params,"file"))
+            if parse.bool(@@(params,"delete_file_bd")){
+                params<"name">:file.justname(@@(params,"file"))
+                do dbr.delete(db,"gs_bit_solicitud_archivo","archivo=@name",params)}
+            if file.exists(path){do file.delete(path)}
+        }
+    }
+
+    point @read to solicitudes.read
+    point @create to solicitudes.create
+    point @update to solicitudes.update
+    point @delete to solicitudes.delete
+}

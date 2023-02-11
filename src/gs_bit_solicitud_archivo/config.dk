@@ -1,0 +1,10 @@
+#include "dkli.dkh"
+#!
+program
+{
+    #include "functions.dkh"
+
+    @gs_base_path = "/usr/dkl_apps/web/irq.ws.induxsoft.net"
+    @gs_temp_path = path.concat(@gs_base_path,"temp")
+    @gs_solicitudes_path = path.concat(@gs_base_path,"solicitudes")
+}

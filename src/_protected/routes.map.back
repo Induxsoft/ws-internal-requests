@@ -1,0 +1,28 @@
+GET: / > $web/$shared/apps/usersman/index.dkl
+Get: /download_file.file/ >$web/$shared/apps/ges-sol/ges_solicitud/download_file.file.dkl
+POST: {ws}/solicitudes/{_entities_type} > $web/$shared/apps/ges-sol/controller.dkl
+GET: {ws}/solicitudes/{_entities_type} > $web/$shared/apps/ges-sol/controller.dkl
+GET: /plantilla_inicio.html > $web/$shared/apps/ges-sol/ges_solicitud/plantilla_inicio.html
+GET: /plantilla_fin.html > $web/$shared/apps/ges-sol/ges_solicitud/plantilla_fin.html
+GET: /plantilla_cancelar.html > $web/$shared/apps/ges-sol/ges_solicitud/plantilla_cancelar.html
+# *: /apps/requests/{_entities_type}/{_entity_id?} > /controller.dkl
+POST,PUT: usersman/services/{resourceType}/{resourceId?} > $web/$shared/apps/usersman/svc.dkl
+DELETE: usersman/services/{resourceType}/{resourceId} > $web/$shared/apps/usersman/svc.dkl
+DELETE: usersman/services/{resourceType}/{resourceId}/{resourceId2} > $web/$shared/apps/usersman/svc.dkl
+
+POST: {ws}/lib_db/{act} > $web/ws.induxsoft.net/_protected/lib_db/exec.dkl
+GET: /definitive.api.js/ > $web/$shared/apps/ges-sol/definitive.api.js
+GET: /get_file/{filename} > $web/ws.induxsoft.net/_protected/apps/apps-catalog.json
+GET: {ws}/apps/requests/install-ws.dkl/ > $web/ws.induxsoft.net/_protected/apps/requests/install-ws.dkl
+GET: {ws}/apps/requests/uninstall-ws.dkl/ > $web/ws.induxsoft.net/_protected/apps/requests/uninstall-ws.dkl
+*: {ws}/apps/requests/{_entities_type}/{_entity_id?} > $web/$shared/apps/ges-sol/controller.dkl
+
+GET: {ws}/settings/ > $web/$shared/apps/usersman/workspace.settings.dkl
+GET: {ws}/{tm}/settings/ > $web/$shared/apps/usersman/workspace.settings.dkl
+GET: {ws}/{tm}/{role}/settings/ > $web/$shared/apps/usersman/workspace.settings.dkl
+
+GET: {ws} > $web/$shared/apps/usersman/workspace.dkl
+GET: {ws}/{tm}/ > $web/$shared/apps/usersman/team.dkl
+GET: {ws}/{tm}/{role} > $web/$shared/apps/usersman/role.dkl
+GET: {ws}/user/profile/{id}/ > $web/$shared/apps/usersman/workspace.user_profile.dk
+

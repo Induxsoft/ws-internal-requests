@@ -1,0 +1,105 @@
+#include "dkli.dkh"
+#!
+
+module "list"
+{
+    #include "functions.dkh"
+	#include "serialize.dkh"
+	#include "dbr.dkh"
+    #include "../config.dk"
+
+    do @context.begin(@crud_context)
+
+    // do file.wtext("\\\\192.168.0.13\\web\\ws.induxsoft.net\\gs_bit_solicitud\\t.txt",to.json(@crud_context))
+    ref @bitacoras = @("&./")
+    ref @parameters=@("&parameters")
+    // do file.(99,to.json(@bitacoras))
+    pintarChat::
+	{
+        for i=0; i<@count(@bitacoras)
+        {
+            ref bitacora = @item(@bitacoras, i)
+            if @@(bitacora,"texto") != ""
+            {
+                ##
+                div(class="d-flex #<@@(bitacora,'autor')>")
+                {
+                    div(class="card border-0 shadow mx-1 mb-1 p-2 rounded")
+                    {
+                        small(class="fst-italic text-secondary me-#<@@(bitacora,'autor')>" style="font-size: 0.9rem"){$'#<@@(bitacora,"autor_nombre")>'}
+                        p(class="m-0 fs-6"){$'#<@@(bitacora,"texto")>'}	
+                        span(class="fst-italic text-secondary" style="font-size: 0.8rem"){$'#<@@(bitacora,"sys_dtcreated")>'}
+                    }
+                }
+            }
+           
+
+            div
+            {  
+                ##
+                    new params  
+                    {
+                        @"bit_solicitud":@@(bitacora,'sys_pk')
+                    }
+
+                    ref consulta = dbr.list(@("&database"), "SELECT archivo,notas FROM gs_bit_solicitud_archivo WHERE bit_solicitud = @bit_solicitud", params)
+                    
+                    for t=0; t<@count(consulta)
+                    {
+                        ref deconsulta = @item(consulta, t)
+                        nombreArchivo = @@(deconsulta,"archivo")+".file"
+                        nombreReal = @@(deconsulta,"notas")
+                        carpetaArchivo = path.concat("C:/devkronx64/web/ws.induxsoft.net/solicitudes",@@(bitacora,"guid_solicitud")+"/bitacora/"+nombreArchivo)
+                        ##
+                            div(class="d-flex #<@@(bitacora,'autor')>")
+                            {
+                                button( type="button" style="font-size: 0.8rem" class="btn btn-outline-primary mb-1" id="solicitud#<t + 1>" onclick="descargarArchivo('#<@@(bitacora,'guid_solicitud')>','bitacora','#<nombreArchivo>','#<nombreReal>')"){"#<nombreReal>"}
+                                #!
+                                if @@(bitacora,'autor') == @('http/session/user/uid'){
+                                    #$ i(class="fa fa-trash m-1" style="color:red;cursor:pointer;" onclick="delete_file_bitacora('#<@@(bitacora,'guid_solicitud')>','bitacora','#<nombreArchivo>','#<nombreReal>')"){$""}
+                                }
+                                $""
+                            }
+                        ##
+                    }
+                ##
+                
+            }
+            ##
+        }
+	}
+    painResult::
+    {
+         ref data=dbr.rec(@("&database"),"select * from gs_solicitud where sys_guid=@solicitud",@parameters)
+        // path_result="./ws.induxsoft.net/solicitudes/"
+        path_result=path.concat(@crud_path,"solicitudes")
+        path_result=path.concat(path_result,@@(@parameters,"solicitud"))
+        path_result=path.concat(path_result,"resultados")
+        ref files= list.files(path_result,"*")
+        for i=0;i<@count(files)
+        {
+            name=file.name(list.str(files,i))
+            ##
+                button( type="button" style="font-size: 0.8rem" class="btn btn-outline-primary mb-1" id="solicitud#<i + 1>" onclick="descargarArchivo('#<@@(@parameters,'solicitud')>','resultados','#<name>')"){"#<name>"}
+                #!
+                 if @@(data,'receptor') == @('http/session/user/uid'){
+                    #$ i(class="fa fa-trash m-1" style="color:red;cursor:pointer;" onclick="delete_file_Entregable('#<@@(@parameters,'solicitud')>','resultados','#<name>')"){$""}
+                 }br{}
+                $""
+            ##
+        }
+        
+    }
+   
+    #$
+        div(class="flex align-items-center")
+        {
+            ##
+                if parse.bool(@@(@parameters,"result")){do painResult()}
+                else{do pintarChat()}
+                
+            ##
+        }       
+    #!
+    do @context.end()
+}
