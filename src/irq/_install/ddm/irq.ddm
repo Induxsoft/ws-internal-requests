@@ -1,0 +1,91 @@
+#include "ddm.dkh"
+model ""
+{
+    /* 
+    Gestión de Solicitudes: 
+    =======================================================================
+    Gestiona solicitudes entre los miembros del espacio de trabajo y facilita el cumplimiento de objetivos.
+    */
+
+    #include "induxsoft.abstracts.ddm"
+
+    //* ======================================== [ DEPENDENCIAS (FK) ]
+
+    //* ======================================== [ ENTIDADES PRINCIPALES ]
+    // Enumeración de estados de las solicitudes.
+    entity "gs_status_solicitud" : "EnumModel" {}
+    // Catalogos de tipos de solicitudes
+    entity "gs_tipo_solicitud" : "TableModel"
+    {
+        @"codigo" string(15) unique
+        @"descripcion" string(50) unique
+    }
+    // Solicitudes
+    entity "gs_solicitud" : "TableModel"
+    {
+        @"referencia" string(32) unique
+        @"creacion" datetime required
+        @"inicio_previsto" datetime required
+        @"inicio_real" datetime required
+        @"cierre_previsto" datetime
+        @"cierre_real" datetime
+        @"emisor" string(32) required
+        @"receptor" string(32)
+        @"emisor_nombre" string(150) required
+        @"receptor_nombre" string(150)
+        @"asunto" string(255) required
+        @"cuerpo" memo
+        @"tipo" ref:"gs_tipo_solicitud" required
+        @"color" int
+        @"color_receptor" int
+        @"status" ref:"gs_status_solicitud" required
+        @"progreso" decimal(4,2)
+        @"req_aceptacion" bool
+        @"req_aprobacion" bool
+        @"receptor_pausar" bool
+        @"receptor_progreso" bool
+    }
+    // Bitacora
+    entity "gs_bit_solicitud" : "TableModel"
+    {
+        @"solicitud" ref:"gs_solicitud" required
+        @"texto" memo required
+        @"autor" string(32) required
+        @"autor_nombre" string(150) required
+    }
+    // Archivos
+    entity "gs_bit_solicitud_archivo"
+    {
+        @"bit_solicitud" ref:"gs_bit_solicitud" required
+        @"archivo" string(150) required
+        @"notas" string(1024)
+    }
+
+    //* ======================================== [ ... ]
+    // Información de la aplicación
+    entity "sys_app_catalog"
+    {
+        @"pack_id" string(32) required
+        @"app_id" string(32) key
+        @"app_title" string(255)
+        @"created" datetime required
+        @"app_info" mmemo
+    }
+    // Categoria de la aplicación
+    entity "sys_app_category"
+    {
+        @"id" string(32) key
+        @"title" string(255) required
+    }
+    // Recursos de la aplicación
+    entity "sys_app_shortcut" 
+    {
+        @"id" string(32) key
+        @"title" string(255) required
+        @"icon96x96" string(1024) required
+        @"src" string(1024) required
+        @"_blank" bool
+        @"appid" ref:"sys_app_catalog"
+        @"cat" ref:"sys_app_category"
+    }
+}

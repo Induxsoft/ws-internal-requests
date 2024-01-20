@@ -232,7 +232,7 @@ module "list_view_solicitudes"
 	#$
 	div(class="m-0 row justify-content-center" id="main")
 	{
-						// almacenamos esta url para recordarla al entrar a una página diferente
+		// almacenamos esta url para recordarla al entrar a una página diferente
 		script{$'sessionStorage.setItem("url_solicitudes",window.location.href);'}
 		//============ CUERPO DE LA PÁGINA
 		#$
