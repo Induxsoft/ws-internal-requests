@@ -1,9 +1,11 @@
 #include "dkli.dkh"
 #!
-module "solicitudes"{
+module "solicitudes"
+{
 
     #include "config.dk"
     #include "config.smtp.dkl"
+    #include "dbr.notif.dkl"
     
     @table_name = "gs_solicitud"
     @status_borrador = 0
@@ -54,7 +56,32 @@ module "solicitudes"{
         ref solicitudes=entity.read(db,params)
         return solicitudes
     }
-    
+    send.notif::&db,&data,&res
+    {
+        if trim(field.dstr(data,"receptor","")) != ""
+        {
+            ref l =list.create()
+            new usr{@"user":@@(data,"$receptor")}
+            do list.add(l,usr)
+
+            uri=replace(@_URL_SOLICITUD,"@id",@@(res,"$sys_pk"))
+            url=replace(@_URL_WEBSHELL,"@url",url_encode(uri))
+
+            new notif
+            {
+                @"title":"Nueva solicitud: "+@@(data,"$referencia")+" "+@@(data,"$asunto")
+                @"sender":@@(@http_context,'$session/user/uid')
+                @"body":""
+                @"img":""
+                @"href":url
+                @"target":"_self"
+                @"start":""
+                @"end":""
+                @"to*":l
+            }
+            do dbr.notif.send(db,notif)
+        }
+    }
     solicitudes.create::&db,&params,&data
     {
         @mail<"to">:@@(data,"email")
@@ -91,11 +118,19 @@ module "solicitudes"{
         {
             archivo_biblioteca = list.str(array_archivos_biblioteca, i)
             origen = path.concat(@gs_temp_path, archivo_biblioteca)
-            destino = path.concat(path.concat(@gs_solicitudes_path,@@(res,"sys_guid")+"/biblioteca"),archivo_biblioteca)
+            dir=path.concat(@gs_solicitudes_path,@@(res,"sys_guid")+"/biblioteca")
+            
+            do dir.ensure(dir)
+            
+            destino = path.concat(dir,archivo_biblioteca)
             do file.copy(origen, destino)
             do file.delete(origen)
         }
-        if trim(@@(data,"receptor"))!=""{
+        
+        do send.notif(db,data,res)
+        
+        if trim(@@(data,"receptor"))!="" && trim(@@(@mail,"$to"))!=""
+        {
             do solicitudes.email(res,@false)
         }
     	return res
@@ -113,8 +148,13 @@ module "solicitudes"{
     {
         if field.dstr(data,"cierre_previsto","") == "" {do field.remove(data,"cierre_previsto")}
         if field.dstr(data,"cierre_real","") == "" {do field.remove(data,"cierre_real")}
-            do field.remove(data,"email")
-        return entity.update(db,params,data)
+        do field.remove(data,"email")
+        
+        ref res= entity.update(db,params,data)
+
+        do send.notif(db,data,res)
+
+        return res
     }
     solicitudes.delete::&db,&params
     {

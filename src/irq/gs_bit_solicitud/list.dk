@@ -72,9 +72,11 @@ module "list"
     {
          ref data=dbr.rec(@("&database"),"select * from gs_solicitud where sys_guid=@solicitud",@parameters)
         // path_result="./ws.induxsoft.net/solicitudes/"
-        path_result=path.concat(@crud_path,"solicitudes")
+        path_result=path.concat(@crud_path,"_solicitudes")
         path_result=path.concat(path_result,@@(@parameters,"solicitud"))
         path_result=path.concat(path_result,"resultados")
+        do dir.ensure(path_result)
+        
         ref files= list.files(path_result,"*")
         for i=0;i<@count(files)
         {

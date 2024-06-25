@@ -6,7 +6,7 @@ program
     #include "dbr.dkh"
     #include "serialize.dkh"
     #include "webcl.dkh"
-    #include "config.dk"
+    #include "irq/ges_solicitud/config.dk"
     
     new res{}
 

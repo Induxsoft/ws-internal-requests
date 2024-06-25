@@ -4,16 +4,42 @@ program
 {
     #include "functions.dkh"
 
-    @gs_base_path = "/usr/dkl_apps/web/irq.ws.induxsoft.net"
+    @gs_base_path = ""
     @gs_temp_path = path.concat(@gs_base_path,"temp")
-    @gs_solicitudes_path = path.concat(@gs_base_path,"solicitudes")
+    @gs_solicitudes_path = path.concat(@gs_base_path,"_solicitudes")
     @gs_solicitudes_cookie_name = "url_solicitudes"
     
 
     @url_delete_file_bitacora="https://irq.ws.induxsoft.net/solicitudes/ges_solicitudes/"
-    @path_get_files=path.concat(@gs_base_path,"solicitudes")
+    @path_get_files=path.concat(@gs_base_path,"_solicitudes")
 
     // dias a partir de la fecha actual
     @inicio_previsto = 0
     @cierre_previsto = 1
+
+    @url_js="/$/irq/js/"
+    @definitive=@url_js + "definitive.api.js"
+
+    //urls
+    @ADD_BITACORA="/!/irq/bitacora/"
+    @ADD_IMG_BITACORA="/!/irq/archivos/"
+    @TRAER_CHAT="/!/irq/bitacora/"
+    @UPLOAD_FILE_CHAT="/!/irq/bitacora/"
+    @TRAER_ENTRGABLES="/!/irq/bitacora/"
+
+    //ul servicios
+    @_UPLOAD_FILES_CHAT="/irq/_services/?service=up_file_service"
+    @_DOWNLOAD_FILE="/irq/_services/?service=download_file"
+    @_CHANGE_COLOR="/irq/_services/?service=change_color"
+    @_CHANGE_STATUS="/irq/_services/?service=change_status"
+
+    ///
+    @_URL_SOLICITUD="/!/irq/solicitudes/@id/"
+    @_URL_WEBSHELL="/?go=@url"
+
+    preserveUrl::url
+    {
+        uri=url + ifstr(contains(url,"?"),"&","?")
+        return uri
+    }
 }

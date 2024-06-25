@@ -6,16 +6,17 @@ program
     #include "dbr.dkh"
     #include "serialize.dkh"
     #include "webcl.dkh"
-    #include "config.dk"
+    #include "irq/ges_solicitud/config.dk"
     
     new res{}
     @uuidArchivosTemporales = ""
     
-
     ref files=field.obj(@http_context,"request/files")
     ref postData=field.dobj(@http_context,"request/post",@null)
     ref getData=@@(@http_context,"&request/get")
 
+    do dir.ensure(@gs_temp_path)
+    
     if not(isnull(postData)){
         //agrega mas archivos a la biblioteca de archivos
         if parse.bool(@@(postData,"add_files")){
@@ -25,7 +26,9 @@ program
                path=path.concat(@gs_solicitudes_path,@@(postData,"sys_guid"))
                carpeta="biblioteca/"
                if parse.bool(@@(postData,"res")){carpeta="resultados/"}
-                do file.copy(field.str(f,"temp_file"),path.concat(path,carpeta+field.str(f,"filename")))
+               dir=path.concat(path,carpeta)
+               do dir.ensure(dir)
+                do file.copy(field.str(f,"temp_file"),dir+field.str(f,"filename"))
             }
         }
         //copia los archivos del temp a la carpeta de resultados segun la solicitud
@@ -43,7 +46,9 @@ program
                         {
                             path=path.concat(@gs_solicitudes_path,@@(postData,"solicitud"))
                             carpeta="resultados/"
-                            do file.copy(name_temp,path.concat(path,carpeta+name_file))
+                            dir=path.concat(path,carpeta)
+                            do dir.ensure(dir)
+                            do file.copy(name_temp,dir+name_file)
                             do file.delete(name_temp)
                         }
                     }
@@ -52,7 +57,9 @@ program
             
         }
 
-    }else{
+    }
+    else
+    {
         //agrega los archivos temporales en temp
         for i=0;i<list.count(files)
         {

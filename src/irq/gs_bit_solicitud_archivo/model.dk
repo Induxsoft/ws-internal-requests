@@ -17,7 +17,9 @@ module "archivos_bitacora"{
         bit_solicitud = @@(data,"bit_solicitud")
 
         ref array_archivos_bitacora = split(cadena_archivos_bitacora, ",")
-
+        
+        
+        
         for i=1; i<@count(array_archivos_bitacora)
         {
             archivo_bitacora= list.str(array_archivos_bitacora, i) //uuid.file.name.ext
@@ -36,7 +38,10 @@ module "archivos_bitacora"{
             }
             nombre_file=list.str(nombreRecortado2,0)
             origen = path.concat(@gs_temp_path, archivo_bitacora)
-            destino = path.concat(path.concat(@gs_solicitudes_path,@@(data,"sys_guid")+"/bitacora"), nombre_file)
+            dir=path.concat(@gs_solicitudes_path,@@(data,"sys_guid")+"/bitacora")
+            do dir.ensure(dir)
+            destino = path.concat(dir, nombre_file)
+            
             do file.copy(origen, destino)
             do file.delete(origen)
             

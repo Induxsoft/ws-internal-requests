@@ -4,7 +4,7 @@
 module "Controller configs"
 {
 
-	@crud_path = "web/irq.ws.induxsoft.net"
+	@crud_path = ""
 	@icon_home="/apps/usersman/icons/home.icon.png"
 	@work_space_omit="a9db71b81e8b40389e67f19b0501fe88"
 	@auto_crud=@true

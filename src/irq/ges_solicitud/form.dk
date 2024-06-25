@@ -9,10 +9,54 @@ module "form.dk"
     #include "dbr.dkh"
     #include "uielements.dkl"
     #include "config.dk"
+    #include "ws.api.dkl"
 
     do @context.begin(@crud_context)
+    ref @http_context=@("&http")
+
     @ws=@("http/request/get/ws")
-    // do rise_error(99,to.json(@crud_context))
+
+    if ws.api.isInduxsoftWorkspace()
+    {
+        @ADD_BITACORA="/"+@ws+"/solicitudes/gs_bit_solicitud/"
+        @ADD_IMG_BITACORA="/"+@ws+"/solicitudes/gs_bit_solicitud_archivo/"
+        @TRAER_CHAT="/"+@ws+"/solicitudes/gs_bit_solicitud/"
+        @UPLOAD_FILE_CHAT="/"+@ws+"/solicitudes/gs_bit_solicitud/"
+        @TRAER_ENTRGABLES="/"+@ws+"/solicitudes/gs_bit_solicitud/"
+
+        @_UPLOAD_FILES_CHAT="/up_file.service"
+        @_DOWNLOAD_FILE="/download_file.file"
+        @_CHANGE_COLOR="/change_color.color"
+        @_CHANGE_STATUS="/change_status.status"
+
+        // obtener usuarios de workspaces
+        new headersWorkspaces
+        {
+            @"Content_type":"application/json"
+        }
+
+        new parametrosWorkspaces
+        {
+            @"ids": @('http/session/user/ids')
+            @"operation": "assignables"
+        }
+
+        content = to.json(parametrosWorkspaces)
+        respuesta = http.request("https://api.induxsoft.net/workspaces/","POST",headersWorkspaces, content)
+        ref respuestaWorkspaces = from.json(respuesta)
+
+        ref @usuariosWorkspaces = @null
+        if @@(respuestaWorkspaces, "#success")
+        {
+        ref @usuariosWorkspaces = @@(respuestaWorkspaces,"&data")
+        }
+    }
+    else 
+    {
+        ref @usuariosWorkspaces =dbr.list(@("&database"),"SELECT t.sys_pk,t.sys_guid,'user' as 'type',t.userid id,t.username name,t.notes
+                                        FROM tuser t order by t.username",@null)
+    }
+    
     @isNew = (@('$./sys_pk')=='')
     @isEmisor = (@('./emisor')==@('http/session/user/uid'))
     @status = parse.num(@("./status"))
@@ -30,27 +74,7 @@ module "form.dk"
         @"uid_rec": @('http/session/user/uid')
     }
 
-    // obtener usuarios de workspaces
-    new headersWorkspaces
-    {
-        @"Content_type":"application/json"
-    }
-
-    new parametrosWorkspaces
-    {
-        @"ids": @('http/session/user/ids')
-        @"operation": "assignables"
-    }
-
-    content = to.json(parametrosWorkspaces)
-    respuesta = http.request("https://api.induxsoft.net/workspaces/","POST",headersWorkspaces, content)
-    ref respuestaWorkspaces = from.json(respuesta)
-
-    if @@(respuestaWorkspaces, "#success")
-    {
-       ref @usuariosWorkspaces = @@(respuestaWorkspaces,"&data")
-        
-    }
+    
     @email_receptor=""
     recorrerUsuarios ::
     {
@@ -750,7 +774,7 @@ module "form.dk"
             readOnly(#<rOnly>);
             disableOnFinish(#<finished>);
         "}
-        script(src="/definitive.api.js"){""}
+        script(src="#<@definitive>"){""}
     }
 }
     #!

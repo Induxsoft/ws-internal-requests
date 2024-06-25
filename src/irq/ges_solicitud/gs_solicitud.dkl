@@ -536,7 +536,7 @@ script{
 			var parametros={"bd":"#<@("$database")>","act":$("#"+status.id).attr("value"),"sys_pk":sys_pk,"ws":"#<@ws>"+"","email":$("#email").val()}
 			$.ajax({
 					type: "POST",
-					url: "/change_status.status",
+					url: "#<@_CHANGE_STATUS>",
 					data: parametros,
 					success: function (res) {
 						if(res.success){
@@ -568,7 +568,7 @@ script{
 
 			$.ajax({
 					type: "POST",
-					url: "/change_color.color",
+					url: "#<@_CHANGE_COLOR>",
 					data: parametros,
 					success: function (res) {
 						
@@ -592,7 +592,7 @@ script{
 			{
 				$("#btnAgregar").prop("disabled", true);
 				$("#textoBitacora").prop("disabled", true);
-				$.post("/#<@ws>/solicitudes/gs_bit_solicitud/", {
+				$.post("#<@ADD_BITACORA>", {
 			      "solicitud": solicitud,
 			      "texto": $("#textoBitacora").val(),
 			      "autor": uidChat,
@@ -616,7 +616,7 @@ script{
 		function agregarImagenesBitacora(bit_solicitud,ruta)
 		{
 			if (ruta != ""){
-				$.post("/#<@ws>/solicitudes/gs_bit_solicitud_archivo/",{
+				$.post("#<@ADD_IMG_BITACORA>",{
 				"bit_solicitud": bit_solicitud,
 				"cadena_archivo": ruta,
 				"sys_guid": $("#sys_guid").val()
@@ -636,7 +636,7 @@ script{
 		{
 			if(solicitud==undefined){return;}
 				$.ajax({
-				url:"/#<@ws>/solicitudes/gs_bit_solicitud/?solicitud="+solicitud+"&_output=raw",
+				url:"#<@TRAER_CHAT>?solicitud="+solicitud+"&_output=raw",
 				type:"GET",
 				dataType: "html",
 				success: function(data){
@@ -734,7 +734,7 @@ script{
 					
 						$.ajax({
 							type: "POST",
-							url: "/up_file.service",
+							url: "#<@_UPLOAD_FILES_CHAT>",
 							data: formDataBiblioteca,
 							cache: false,
 							contentType: false,
@@ -782,7 +782,7 @@ script{
 				
 				$.ajax({
 					type: "POST",
-					url: "/up_file.service?bit=true",
+					url: "#<preserveUrl(@_UPLOAD_FILES_CHAT)>bit=true",
 					data: formDataBitacora,
 					cache: false,
 					contentType: false,
@@ -794,7 +794,7 @@ script{
 						cadenaArchivosBitacora.val(cadenaArchivosBitacora.val()+archivosTemporales);
 						 // agregarImagenesBitacora($("#sys_pk").val() ,$("#cadenaArchivosBitacora").val());
 
-						$.post("/#<@ws>/solicitudes/gs_bit_solicitud/", {
+						$.post("#<@UPLOAD_FILE_CHAT>", {
 					      "solicitud": solicitud,
 					      "texto": "",
 					      "autor": uidChat,
@@ -851,7 +851,7 @@ script{
 				}
 				$.ajax({
 					type: "POST",
-					url: "/up_file.service?res=true",
+					url: "#<preserveUrl(@_UPLOAD_FILES_CHAT)>res=true",
 					data: formDataEntregables,
 					cache: false,
 					contentType: false,
@@ -880,12 +880,14 @@ script{
 					files:$("#cadenaArchivosEntregables").val()
 				}
 				$.ajax({
-					url:"/up_file.service",
+					url:"#<@_UPLOAD_FILES_CHAT>",
 					type:"POST",
-					dataType: "html",
+					dataType: "json",
 					data:data,
-					success: function(data){
-						var res= JSON.parse(data);
+					success: function(data)
+					{
+						console.log(data)
+						var res=data; //JSON.parse(data);
 						if(res.success)
 						{
 							traerEntregables();
@@ -901,7 +903,7 @@ script{
 			var solicitud="#<@("./sys_guid")>";
 			if(solicitud!=""){
 				$.ajax({
-					url:"/#<@ws>/solicitudes/gs_bit_solicitud/?solicitud="+solicitud+"&result=true&_output=raw",
+					url:"#<@TRAER_ENTRGABLES>?solicitud="+solicitud+"&result=true&_output=raw",
 					type:"GET",
 					dataType: "html",
 					success: function(data){
@@ -923,7 +925,7 @@ script{
 			
 				$.ajax({
 					type: "POST",
-					url: "/up_file.service",
+					url: "#<@_UPLOAD_FILES_CHAT>",
 					data: formDataBitacora,
 					cache: false,
 					contentType: false,
@@ -942,7 +944,7 @@ script{
 
 		function descargarArchivo(guid,tipo,name_file,real_name="")
 		{
-			window.open("/download_file.file?guid="+guid+"&tipo="+tipo+"&file="+name_file+"&name="+real_name);
+			window.open("#<preserveUrl(@_DOWNLOAD_FILE)>guid="+guid+"&tipo="+tipo+"&file="+name_file+"&name="+real_name);
 		}
 
 		window.onload = function() {

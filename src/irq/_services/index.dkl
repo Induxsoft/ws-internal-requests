@@ -1,0 +1,23 @@
+#include "dkli.dkh"
+#!
+module ""
+{
+    #include "functions.dkh"
+    #include "serialize.dkh"
+    path_service="irq/_services/"
+
+    ref get=@@(@http_context,"&request/get")
+
+    service=@@(get,"$service")
+    service=path.concat(path_service,service+".dkl")
+    if file.exists(service){include service}
+    else
+    {
+        service=path.concat(path_service,service+".dk")
+        if file.exists(service){include service}
+        else 
+        {
+            do rise_error(500,"No se encontró el servicio solicitado")
+        }
+    }
+}
