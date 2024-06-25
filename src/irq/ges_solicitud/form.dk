@@ -54,7 +54,8 @@ module "form.dk"
     else 
     {
         ref @usuariosWorkspaces =dbr.list(@("&database"),"SELECT t.sys_pk,t.sys_guid,'user' as 'type',t.userid id,t.username name,t.notes
-                                        FROM tuser t order by t.username",@null)
+                                        FROM tuser t WHERE IFNULL(t.external,0)=0
+                                        order by t.username",@null)
     }
     
     @isNew = (@('$./sys_pk')=='')
